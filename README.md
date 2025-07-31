@@ -13,7 +13,7 @@
 
 点击下面的按钮可以一键部署到Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/dcshipan)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/houpe/dcshipan)
 
 ## 本地运行
 
