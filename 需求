@@ -1,0 +1,312 @@
+#日榜数据
+
+https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_get_rank&rankType=10005&recIdx=0&recCnt=50&rankid=0
+
+#周榜数据
+
+https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_get_rank&rankType=10000&recIdx=0&recCnt=50&rankid=0
+
+#月榜数据
+
+https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_get_rank&rankType=10001&recIdx=0&recCnt=50&rankid=0
+
+#年榜数据
+https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_get_rank&rankType=10003&recIdx=0&recCnt=50&rankid=0
+
+#总榜数据
+
+https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_get_rank&rankType=10004&recIdx=0&recCnt=50&rankid=0
+
+第一步，请求组合列表：
+
+
+要求
+
+1、请求上面5个url，url，找个共性嘛，获取返回的数据，
+
+2、返回的json格式如下，
+
+{
+
+"result": "0",
+
+"message": "ok",
+
+"isList": "1",
+
+"listSize": "20",
+
+"data": [
+
+{
+
+"userid": "9529513379563086",
+
+"zjzh": "900247333",
+
+"zhuheName": "华孚中神通",
+
+"concernCnt": "1525",
+
+"uidNick": "绝望谷长老",
+
+"label1": "化学制药",
+
+"label2": "",
+
+"label3": "",
+
+"rateTitle": "20日收益",
+
+"rateForApp": "154.84",
+
+"zuheflag": "1"
+
+},
+
+{
+
+"userid": "7879115441802678",
+
+"zjzh": "900273014",
+
+"zhuheName": "纯数字",
+
+"concernCnt": "0",
+
+"uidNick": "金光破云",
+
+"label1": "仪器仪表",
+
+"label2": "",
+
+"label3": "",
+
+"rateTitle": "20日收益",
+
+"rateForApp": "135.24",
+
+"zuheflag": "1"
+
+}
+
+],
+
+"rankid": "0"
+
+}
+
+zjzh：组合id
+
+zhuheName：组合名字
+
+rateTitle：收益类型
+
+rateForApp：收益率
+
+3、将5个获取的d缓存到，外层记录一个时间，DiskCache中，新增一个组合排名，每个组合分别从1开始。，缓存用相对路径，年榜和总榜，只取前50个。
+4、程序启动的时候执行首次执行，每日9：15到11点30，13点到15点，每30秒执行一次后端控制逻辑，
+5、打印进度条，的形式，一共多少条，获取了多少条，进度，耗时。是获取的缓存。
+
+
+
+
+
+
+第二步，获取组合调仓记录
+
+1、调仓记录url，# https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_hold_change72&zh=900279970&recIdx=1&recCnt=10
+
+2、读取缓存中的diskcache中的【组合列表】，若组合列表的缓存过期，则重新请求，第一步，获取到组合列表后，根据 zjzh：组合id，替换为调仓记录url里的zh， 获取组合的持仓数据，异步请求调仓记录信息
+
+组合持仓数据返回格式如下，
+
+{
+
+"result": "0",
+
+"message": "ok",
+
+"isList": "1",
+
+"listSize": "10",
+
+"data": [
+
+{
+
+"fullcode": "201411072",
+
+"stkName": "幸福蓝海",
+
+"stkMktCode": "SZ300528",
+
+"tzrq": "20250729",
+
+"lshj_mr": "1",
+
+"cwhj_mr": "9成以上",
+
+"cjjg_mr": "21.080",
+
+"lshj_mc": "0",
+
+"cwhj_mc": "-",
+
+"cjjg_mc": "-"
+
+},
+
+{
+
+"fullcode": "201411072",
+
+"stkName": "幸福蓝海",
+
+"stkMktCode": "SZ300528",
+
+"tzrq": "20250729",
+
+"lshj_mr": "0",
+
+"cwhj_mr": "-",
+
+"cjjg_mr": "-",
+
+"lshj_mc": "1",
+
+"cwhj_mc": "9成以上",
+
+"cjjg_mc": "21.100"
+
+}
+
+]
+
+}
+
+tzrq：调仓日期，格式是这种，20250729，
+
+cwhj_mr 若不是-，且不包含”成“ ，则代表买入
+
+cwhj_mc 若不是- ，且不包含”成“，则代表卖出
+
+3、得到各个组合的 当日（根据tzrq只要今天的），若运行时间，小于早上9点30分，则取前一日的数据，的数据
+
+格式如下 20250729
+
+日期，组合id，组合name，调仓股票，股票name，调仓情况（买入/卖出）
+
+调仓日期的定义，
+程序运行的在
+0点到8点30分，调仓日期是前一个交易日。注意是交易日，不是前一天。
+8点30分到24点，调仓日期是当天，若当天不是交易日，则取上一个最近的交易日。
+
+调仓记录，只取对应调仓日的，只要一天，如20250729满足，调仓日的定义，则只在调仓记录中，获取该日期的记录汇总。
+
+
+4、将调仓记录，
+调仓记录 请求后 缓存到DiskCache中，key是 组合id+日期+股票+cwhj_mr+cwhj_mc，value，是具体的股票代码，股票名称，调仓情况（买入/卖出）。
+或者你认为怎么存合理，因为我前端3s就要刷新一次，若发现新记录，则更新。3s由于前端控制，可能是其他值，不要写到后端里。
+并打印。
+
+4、打印进度条，的形式，一共多少条，获取了多少条，进度，耗时。
+
+第三步：
+
+1、通过tc——list，从diskcahe中读取，按股票汇总，买入组合数，卖出组合数，按买入组合数排序，放到，tab【调仓记录中】，在增加一个空白的【关注组合】tab
+生成html界面。
+
+第四步，
+
+前端，10s钟刷新一次tc_list，
+
+第五步：
+
+买入组合和卖出组合里，在根据组合id，
+
+请求 https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_zhuhe_detail72&zh=900275106
+
+得到json，
+
+{
+
+"result": "0",
+
+"message": "ok",
+
+"isList": "0",
+
+"listSize": "0",
+
+"data": {
+
+"position": [
+
+{
+
+"fullcode": "402759937",
+
+"cbj": "4.820",
+
+"holdPos": "98",
+
+"positionRateDetail": "97.730421",
+
+"showDigit": "0",
+
+"stkMktCode": "SH600684",
+
+"__code": "600684",
+
+"__name": "珠江股份",
+
+"__zxjg": "4.930",
+
+"webYkRate": "2.28"
+
+},
+
+{
+
+"fullcode": "527808",
+
+"cbj": "16.550",
+
+"holdPos": "2",
+
+"positionRateDetail": "1.721050",
+
+"showDigit": "0",
+
+"stkMktCode": "SZ002037",
+
+"__code": "002037",
+
+"__name": "保利联合",
+
+"__zxjg": "15.280",
+
+"webYkRate": "-7.67"
+
+}
+
+]}
+
+position是持仓信息。
+
+__code：股票代码
+
+__name：股票名称
+
+__zxjg：股票今日价格
+
+cbj：成本价
+
+__zxjg：现价
+
+webYkRate：盈亏比
+
+holdPos：仓位
+
+使用python conda QMT环境

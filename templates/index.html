@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        :root {
+            /* Light theme colors */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #e9ecef;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-muted: #adb5bd;
+            --border-color: #dee2e6;
+            --accent-color: #0d6efd;
+            --accent-hover: #0b5ed7;
+            --success-color: #198754;
+            --danger-color: #dc3545;
+            --warning-color: #fd7e14;
+            --info-color: #0dcaf0;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-medium: rgba(0, 0, 0, 0.15);
+            --shadow-heavy: rgba(0, 0, 0, 0.25);
+        }
+        
+        [data-theme="dark"] {
+            /* Dark theme colors */
+            --bg-primary: #1a1d23;
+            --bg-secondary: #2d3748;
+            --bg-tertiary: #4a5568;
+            --text-primary: #f7fafc;
+            --text-secondary: #e2e8f0;
+            --text-muted: #a0aec0;
+            --border-color: #4a5568;
+            --accent-color: #3182ce;
+            --accent-hover: #2c5aa0;
+            --success-color: #38a169;
+            --danger-color: #e53e3e;
+            --warning-color: #dd6b20;
+            --info-color: #0bc5ea;
+            --shadow-light: rgba(0, 0, 0, 0.3);
+            --shadow-medium: rgba(0, 0, 0, 0.4);
+            --shadow-heavy: rgba(0, 0, 0, 0.6);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: var(--bg-primary);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px var(--shadow-light);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        
+
+        .status-bar {
+            background-color: var(--accent-color);
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 8px var(--shadow-light);
+            position: relative;
+            gap: 30px;
+            flex-wrap: wrap;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        /* 响应式布局优化 */
+        @media (max-width: 1200px) {
+            .status-bar {
+                gap: 20px;
+            }
+            
+            .status-left {
+                gap: 20px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .status-bar {
+                gap: 10px;
+                padding: 10px 15px;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+            
+            .status-left,
+            .status-right {
+                gap: 10px;
+                flex-wrap: nowrap;
+                flex-shrink: 0;
+            }
+            
+            .status-item {
+                flex-shrink: 0;
+                white-space: nowrap;
+            }
+            
+            .status-item span {
+                font-size: 0.85em;
+            }
+        }
+        
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .theme-toggle:active {
+            transform: translateY(0);
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .status-item span {
+            font-size: 0.95em;
+        }
+        
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 12px var(--success-color), 0 0 24px rgba(34, 197, 94, 0.4);
+            position: relative;
+        }
+        
+        .status-dot::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
+            animation: ripple 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { 
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.7;
+                transform: scale(1.1);
+            }
+            100% { 
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes ripple {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.8;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.4;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        .tabs {
+            display: flex;
+            background-color: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 0;
+            margin: 0;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 16px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            background-color: var(--bg-primary);
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+        
+        .tab:hover:not(.active) {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+         
+         .tab-icon {
+             font-size: 1.2em;
+             margin-right: 8px;
+             display: inline-block;
+             transition: transform 0.3s ease;
+         }
+         
+         .tab-text {
+             display: inline-block;
+             transition: transform 0.3s ease;
+         }
+         
+         .tab.active .tab-icon {
+             transform: scale(1.1);
+         }
+         
+         .tab:hover .tab-icon {
+             transform: scale(1.05);
+         }
+        
+        .tab-content {
+            display: none;
+            padding: 30px;
+            background-color: var(--bg-primary);
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--bg-primary);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px var(--shadow-light);
+            border: 1px solid var(--border-color);
+        }
+        
+        .data-table th {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 16px 12px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+         }
+        
+        .data-table td {
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+        
+        .data-table tr:hover {
+            background-color: var(--bg-secondary);
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .action-buy {
+            color: var(--danger-color);
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: rgba(220, 53, 69, 0.1);
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        
+        .action-sell {
+            color: var(--success-color);
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: rgba(25, 135, 84, 0.1);
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        
+        .action-zero {
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: rgba(173, 181, 189, 0.1);
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px 40px;
+            color: var(--text-secondary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .loading-spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 40px;
+            color: var(--text-secondary);
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+        
+        .empty-state p {
+            color: var(--text-secondary);
+            font-size: 1em;
+            line-height: 1.6;
+            max-width: 500px;
+            margin: 0 auto 10px;
+        }
+        
+        /* 排名标签样式 */
+        .rank-tag {
+            display: inline-block;
+            background-color: var(--danger-color);
+            color: white;
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
+            vertical-align: super;
+            font-weight: 600;
+            line-height: 1;
+            transition: all 0.3s ease;
+        }
+        
+        /* 不同排行榜的背景色 */
+        .rank-tag[data-rank-type="日榜"] {
+            background-color: var(--danger-color);
+        }
+        
+        .rank-tag[data-rank-type="周榜"] {
+            background-color: var(--warning-color);
+        }
+        
+        .rank-tag[data-rank-type="月榜"] {
+            background-color: var(--success-color);
+        }
+        
+        .rank-tag[data-rank-type="年榜"] {
+            background-color: var(--info-color);
+        }
+        
+        .rank-tag[data-rank-type="总榜"] {
+            background-color: var(--text-secondary);
+        }
+        
+        /* 暗黑主题下的排名标签优化 */
+        [data-theme="dark"] .rank-tag[data-rank-type="总榜"] {
+            background-color: #4a5568;
+            color: #f7fafc;
+        }
+        
+        [data-theme="dark"] .rank-tag {
+            color: #f7fafc;
+        }
+        
+        /* 组合名字样式 */
+        .combo-name {
+            cursor: pointer;
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        
+        .combo-name:hover {
+            color: var(--accent-hover);
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        
+        /* 暗色主题下的组合名字样式 */
+        [data-theme="dark"] .combo-name {
+            color: white;
+        }
+        
+        [data-theme="dark"] .combo-name:hover {
+            color: #f0f8ff;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Popover样式 */
+        .popover {
+            position: absolute;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            z-index: 1000;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            max-width: 300px;
+            word-wrap: break-word;
+            display: none;
+            border: 1px solid var(--border-color);
+        }
+        
+        .popover::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid var(--bg-tertiary);
+        }
+        
+        .popover-content {
+            margin-bottom: 8px;
+        }
+        
+        .popover-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .popover-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* 默认样式，当没有data-rank-type时使用 */
+        .rank-tag:not([data-rank-type]):nth-of-type(2) {
+            background: #f39c12;
+        }
+        
+        .rank-tag:not([data-rank-type]):nth-of-type(3) {
+            background: #27ae60;
+        }
+        
+        .rank-tag:not([data-rank-type]):nth-of-type(n+4) {
+            background: #95a5a6;
+        }
+        
+        /* 刷新间隔选择器样式 */
+        .refresh-interval-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 6px;
+            padding: 6px 10px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .refresh-interval-selector:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+        
+        .refresh-interval-selector label {
+            color: white;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .refresh-interval-selector select {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.9em;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-interval-selector select:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+        }
+        
+        /* 暗黑主题下的刷新间隔选择器优化 */
+        [data-theme="dark"] .refresh-interval-selector {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        [data-theme="dark"] .refresh-interval-selector:hover {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        [data-theme="dark"] .refresh-interval-selector select {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        [data-theme="dark"] .refresh-interval-selector select:focus {
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 暗黑主题下的按钮样式 */
+        [data-theme="dark"] .refresh-btn,
+        [data-theme="dark"] .theme-toggle {
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #f7fafc;
+        }
+        
+        [data-theme="dark"] .refresh-btn:hover,
+        [data-theme="dark"] .theme-toggle:hover {
+            background: rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 暗黑主题下的状态点优化 */
+        [data-theme="dark"] .status-dot {
+            box-shadow: 0 0 16px var(--success-color), 0 0 32px rgba(34, 197, 94, 0.6), 0 0 48px rgba(34, 197, 94, 0.3);
+        }
+        
+        [data-theme="dark"] .status-dot::before {
+            background: radial-gradient(circle, rgba(34, 197, 94, 0.5) 0%, transparent 70%);
+        }
+        
+        /* 刷新按钮样式 */
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-bar">
+            <div class="status-left">
+                <div class="status-item">
+                    <div class="status-dot"></div>
+                    <span>实时监控中</span>
+                </div>
+                <div class="status-item">
+                    <span>最后更新: <span id="lastUpdate">--</span></span>
+                </div>
+                <div class="status-item">
+                    <span>下次刷新: <span id="nextRefresh">30</span>秒</span>
+                </div>
+            </div>
+            <div class="status-right">
+                <div class="status-item refresh-interval-selector">
+                    <label for="refreshInterval">刷新间隔:</label>
+                    <select id="refreshInterval" onchange="changeRefreshInterval()">
+                        <option value="3">3秒</option>
+                        <option value="10">10秒</option>
+                        <option value="30" selected>30秒</option>
+                        <option value="60">60秒</option>
+                        <option value="180">180秒</option>
+
+                    </select>
+                </div>
+                <button class="refresh-btn" onclick="refreshData()">立即刷新</button>
+                <button class="refresh-btn" onclick="testPortfolioDetail()">测试持仓详情</button>
+                <button class="refresh-btn" onclick="testCreateCell()">测试创建单元格</button>
+                <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('trading-records')">
+                <span class="tab-icon">📈</span>
+                <span class="tab-text">调仓记录</span>
+            </button>
+            <button class="tab" onclick="switchTab('watch-list')">
+                <span class="tab-icon">💎</span>
+                <span class="tab-text">关注组合</span>
+            </button>
+            <button class="tab" onclick="switchTab('portfolio-detail')">
+                <span class="tab-icon">📊</span>
+                <span class="tab-text">组合详情</span>
+            </button>
+        </div>
+        
+        <div id="trading-records" class="tab-content active">
+            
+            <div id="stockSummaryLoading" class="loading">
+                <div class="loading-spinner"></div>
+                <div>正在加载调仓数据...</div>
+            </div>
+            
+            <div id="stockSummaryContent" style="display: none;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>代码/名称</th>
+                            <th>买数</th>
+                            <th>卖数</th>
+                            <th>买组合</th>
+                            <th>卖组合</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockSummaryTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="watch-list" class="tab-content">
+            <div class="empty-state">
+                <h3>🌟 关注组合</h3>
+                <p>此功能正在开发中，敬请期待...</p>
+                <p>您可以在这里添加和管理您关注的投资组合</p>
+            </div>
+        </div>
+        
+        <div id="portfolio-detail" class="tab-content">
+            <div style="margin-bottom: 20px;">
+                <label for="portfolioIdInput" style="margin-right: 10px; font-weight: 600;">组合ID:</label>
+                <input type="text" id="portfolioIdInput" placeholder="请输入组合ID，如：900275106" 
+                       style="padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; margin-right: 10px; width: 200px;">
+                <button onclick="loadPortfolioDetail()" 
+                        style="padding: 8px 16px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer;">查询</button>
+            </div>
+            
+            <div id="portfolioDetailLoading" class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <div>正在加载组合详情...</div>
+            </div>
+            
+            <div id="portfolioDetailContent" style="display: none;">
+                <div id="portfolioInfo" style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <!-- 组合基本信息将在这里显示 -->
+                </div>
+                
+                <div id="portfolioPositions">
+                    <h3 style="margin-bottom: 15px; color: var(--accent-color);">📊 股票持仓</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>名称/代码</th>
+                                <th>成本/现价</th>
+                                <th>盈亏比</th>
+                                <th>仓位</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolioPositionsTable">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="portfolioDetailEmpty" class="empty-state">
+                <h3>📊 组合详情</h3>
+                <p>请输入组合ID查询组合详情</p>
+                <p>您可以从调仓记录中点击组合名称获取组合ID</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let refreshTimer;
+        let countdownTimer;
+        let countdownSeconds = 30;
+        let refreshInterval = 30; // 默认刷新间隔（秒）
+        
+        // Cookie操作函数
+        function setCookie(name, value, days = 30) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+        }
+        
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for(let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
+        
+        // 改变刷新间隔
+        function changeRefreshInterval() {
+            const select = document.getElementById('refreshInterval');
+            refreshInterval = parseInt(select.value);
+            
+            // 保存到cookie
+            setCookie('refreshInterval', refreshInterval);
+            
+            // 重新启动倒计时
+            clearInterval(countdownTimer);
+            startCountdown();
+        }
+        
+        // 初始化刷新间隔设置
+        function initRefreshInterval() {
+            const savedInterval = getCookie('refreshInterval');
+            if (savedInterval) {
+                refreshInterval = parseInt(savedInterval);
+                document.getElementById('refreshInterval').value = refreshInterval;
+            }
+        }
+        
+        // 切换标签页
+        function switchTab(tabId) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 移除所有标签的激活状态
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的标签内容
+            document.getElementById(tabId).classList.add('active');
+            
+            // 激活选中的标签
+            event.target.classList.add('active');
+        }
+        
+        // 刷新数据
+        async function refreshData() {
+            console.log('=== refreshData 开始 ===');
+            try {
+                // 显示加载状态
+                document.getElementById('stockSummaryLoading').style.display = 'block';
+                document.getElementById('stockSummaryContent').style.display = 'none';
+                
+                // 获取股票汇总数据
+                const response = await fetch('/api/stock_summary');
+                const data = await response.json();
+                console.log('API响应数据:', data);
+                
+                if (data.success) {
+                    await updateStockSummary(data.data);
+                    document.getElementById('lastUpdate').textContent = data.update_time;
+                } else {
+                    console.error('获取数据失败:', data.error);
+                }
+                
+                // 隐藏加载状态
+                document.getElementById('stockSummaryLoading').style.display = 'none';
+                document.getElementById('stockSummaryContent').style.display = 'block';
+                
+            } catch (error) {
+                console.error('刷新数据失败:', error);
+                document.getElementById('stockSummaryLoading').style.display = 'none';
+            }
+        }
+        
+        // 截取组合名字并添加点击事件
+        function createComboCell(comboText) {
+            const cell = document.createElement('td');
+            cell.style.cssText = 'max-width: 300px; word-wrap: break-word; font-size: 0.9em; line-height: 1.8; vertical-align: top; padding: 12px 8px; position: relative;';
+            
+            if (!comboText || comboText === '-') {
+                cell.innerHTML = comboText || '-';
+                return cell;
+            }
+            
+            // 解析组合信息
+            const comboItems = comboText.split('<br>');
+            const processedItems = comboItems.map(item => {
+                if (!item || item.trim() === '') return '';
+                
+                // 创建临时div来解析HTML内容
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = item;
+                
+                // 提取纯文本组合名称（去掉排名标签）
+                // 先移除排名标签，再提取文本内容
+                const rankTags = tempDiv.querySelectorAll('.rank-tag');
+                rankTags.forEach(tag => tag.remove());
+                const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                const comboName = textContent.trim();
+                
+                if (!comboName) return '';
+                
+                // 显示完整组合名称，不再缩写
+                const displayName = comboName;
+                
+                // 重新解析原始HTML以提取排名标签（因为之前已经移除了）
+                const originalDiv = document.createElement('div');
+                originalDiv.innerHTML = item;
+                const originalRankTags = originalDiv.querySelectorAll('.rank-tag');
+                let rankText = '';
+                if (originalRankTags.length > 0) {
+                    rankText = Array.from(originalRankTags).map(tag => tag.textContent).join(' ');
+                }
+                
+                // 直接返回后端提供的HTML（已包含组合ID和排名标签）
+                return item;
+            }).filter(item => item !== '');
+            
+            cell.innerHTML = processedItems.join('<br>');
+            return cell;
+        }
+        
+        // 创建带详情的组合单元格（处理结构化数组数据）
+        async function createComboCellWithDetails(combosArray) {
+            console.log('createComboCellWithDetails 被调用，参数:', combosArray);
+            
+            const cell = document.createElement('td');
+            cell.style.cssText = 'max-width: 300px; word-wrap: break-word; font-size: 0.9em; line-height: 1.8; vertical-align: top; padding: 12px 8px; position: relative;';
+            
+            if (!combosArray || combosArray.length === 0) {
+                console.log('组合数组为空，直接返回');
+                cell.innerHTML = '-';
+                return cell;
+            }
+            
+            console.log('开始处理组合数组，长度:', combosArray.length);
+            let processedItems = [];
+            
+            for (let i = 0; i < combosArray.length; i++) {
+                const combo = combosArray[i];
+                console.log(`处理第${i}个组合:`, combo);
+                
+                if (!combo || !combo.id || !combo.name) {
+                    console.log('跳过无效组合');
+                    continue;
+                }
+                
+                // 构建组合显示HTML
+                let itemHtml = `<span class="combo-name" data-combo-id="${combo.id}" data-combo-name="${combo.name}">${combo.display_name || combo.name}</span>`;
+                
+                // 添加排名标签
+                if (combo.ranks && combo.ranks.length > 0) {
+                    combo.ranks.forEach(rank => {
+                        itemHtml += `<span class="rank-tag" data-rank-type="${rank.type}">${rank.text}</span>`;
+                    });
+                }
+                
+                // 只为第一个组合获取持仓详情
+                if (i === 0) {
+                    console.log('准备获取第一个组合的持仓详情，组合ID:', combo.id);
+                    try {
+                        console.log('发送API请求到:', `/api/portfolio_detail/${combo.id}`);
+                        const response = await fetch(`/api/portfolio_detail/${combo.id}`);
+                        console.log('API响应状态:', response.status);
+                        const result = await response.json();
+                        console.log('API响应数据:', result);
+                        
+                        if (result.success && result.data && result.data.持仓信息) {
+                            console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
+                            const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
+                            let holdingsHtml = '<div style="font-size: 0.8em; color: #666; margin-top: 4px; line-height: 1.4; background-color: rgba(255, 255, 255, 0.05); padding: 2px; border-left: 2px solid #4a90e2;">';
+                            holdings.forEach(holding => {
+                                const profitRate = parseFloat(holding.盈亏比.replace('%', ''));
+                                let profitColor;
+                                if (profitRate > 0) {
+                                    profitColor = '#ef4444'; // 红色
+                                } else if (profitRate === 0) {
+                                    profitColor = '#999'; // 灰色
+                                } else {
+                                    profitColor = '#22c55e'; // 绿色
+                                }
+                                holdingsHtml += `<div style="font-size: 0.8em; margin: 1px 0; white-space: nowrap;">
+                                    <span style="font-weight: 600;">${holding.股票名称}</span>/<span style="color: #999;">${holding.股票代码}</span> <span>${holding.成本价}</span>/<span style="color: #999;">${holding.现价}</span> <span style="color: ${profitColor}; font-weight: bold;">${holding.盈亏比}</span> <span>${holding.仓位}</span>
+                                </div>`;
+                            });
+                            if (result.data.持仓信息.length > 3) {
+                                holdingsHtml += '<div style="color: #999;">...</div>';
+                            }
+                            holdingsHtml += '</div>';
+                            itemHtml += holdingsHtml;
+                            console.log('添加持仓详情后的HTML长度:', itemHtml.length);
+                        } else {
+                            console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
+                        }
+                    } catch (error) {
+                        console.error('获取组合详情失败:', error);
+                        // 添加错误提示到HTML中
+                        itemHtml += '<div style="font-size: 0.7em; color: red; margin-top: 2px;">[获取详情失败]</div>';
+                    }
+                } else {
+                    console.log(`跳过组合详情获取，i=${i}`);
+                }
+                
+                processedItems.push(itemHtml);
+            }
+            
+            console.log('处理完成，最终HTML项数:', processedItems.length);
+            cell.innerHTML = processedItems.join('<br>');
+            console.log('返回的cell.innerHTML长度:', cell.innerHTML.length);
+            return cell;
+        }
+        
+        // 显示popover
+        function showPopover(element, comboName, comboId) {
+            // 移除已存在的popover
+            const existingPopover = document.querySelector('.popover');
+            if (existingPopover) {
+                existingPopover.remove();
+            }
+            
+            const popover = document.createElement('div');
+            popover.className = 'popover';
+            
+            let content = `<div class="popover-content">组合名称: ${comboName}</div>`;
+            
+            // 添加排名信息
+            const rankInfo = element.getAttribute('data-rank');
+            if (rankInfo && rankInfo.trim()) {
+                content += `<div class="popover-content">排名: ${rankInfo}</div>`;
+            }
+            
+            if (comboId) {
+                const homeUrl = `https://groupwap.eastmoney.com/group/reality/info.html?zh=${comboId}&appfenxiang=1`;
+                content += `<div><a href="${homeUrl}" target="_blank" class="popover-link">查看主页</a></div>`;
+            }
+            
+            popover.innerHTML = content;
+            document.body.appendChild(popover);
+            
+            // 定位popover
+            const rect = element.getBoundingClientRect();
+            popover.style.left = rect.left + 'px';
+            popover.style.top = (rect.bottom + 5) + 'px';
+            popover.style.display = 'block';
+        }
+        
+        // 隐藏popover
+        function hidePopover() {
+            const popover = document.querySelector('.popover');
+            if (popover) {
+                popover.remove();
+            }
+        }
+        
+        // 更新股票汇总表格
+        async function updateStockSummary(stockData) {
+            console.log('=== updateStockSummary 开始执行 ===');
+            console.log('接收到的数据长度:', stockData.length);
+            console.log('第一条数据:', stockData[0]);
+            console.log('stockData:', stockData);
+            const tbody = document.getElementById('stockSummaryTable');
+            tbody.innerHTML = '';
+            
+            for (const stock of stockData) {
+                const row = document.createElement('tr');
+                
+                // 根据数值决定样式类
+                const buyClass = stock.买入组合数 === 0 ? 'action-zero' : 'action-buy';
+                const sellClass = stock.卖出组合数 === 0 ? 'action-zero' : 'action-sell';
+                
+                // 创建合并的代码/名称单元格
+                const codeNameCell = document.createElement('td');
+                codeNameCell.innerHTML = `<div style="line-height: 1.2;">${stock.股票代码}<br/>${stock.股票名称}</div>`;
+                
+                const buyCountCell = document.createElement('td');
+                buyCountCell.innerHTML = `<span class="${buyClass}">${stock.买入组合数}</span>`;
+                
+                const sellCountCell = document.createElement('td');
+                sellCountCell.innerHTML = `<span class="${sellClass}">${stock.卖出组合数}</span>`;
+                
+                // 创建带详情的组合单元格
+                console.log('准备创建买入组合单元格:', stock.买入组合);
+                console.log('买入组合类型:', typeof stock.买入组合);
+                
+                let buyCell;
+                try {
+                    buyCell = await createComboCellWithDetails(stock.买入组合);
+                    console.log('买入组合单元格创建成功');
+                } catch (error) {
+                    console.error('创建买入组合单元格失败:', error);
+                    buyCell = document.createElement('td');
+                    buyCell.innerHTML = stock.买入组合 || '-';
+                }
+                
+                console.log('准备创建卖出组合单元格:', stock.卖出组合);
+                let sellCell;
+                try {
+                    sellCell = await createComboCellWithDetails(stock.卖出组合);
+                    console.log('卖出组合单元格创建成功');
+                } catch (error) {
+                    console.error('创建卖出组合单元格失败:', error);
+                    sellCell = document.createElement('td');
+                    sellCell.innerHTML = stock.卖出组合 || '-';
+                }
+                console.log('组合单元格创建完成');
+                
+                // 添加所有单元格到行
+                row.appendChild(codeNameCell);
+                row.appendChild(buyCountCell);
+                row.appendChild(sellCountCell);
+                row.appendChild(buyCell);
+                row.appendChild(sellCell);
+                
+                tbody.appendChild(row);
+            }
+            
+            // 添加事件监听器
+             document.querySelectorAll('.combo-name').forEach(element => {
+                 element.addEventListener('click', function() {
+                     const comboId = this.getAttribute('data-combo-id');
+                     if (comboId) {
+                         const homeUrl = `https://groupwap.eastmoney.com/group/reality/info.html?zh=${comboId}&appfenxiang=1`;
+                         window.open(homeUrl, '_blank');
+                     }
+                 });
+             });
+        }
+        
+
+        
+        // 启动倒计时
+        function startCountdown() {
+            countdownSeconds = refreshInterval;
+            countdownTimer = setInterval(() => {
+                countdownSeconds--;
+                document.getElementById('nextRefresh').textContent = countdownSeconds;
+                
+                if (countdownSeconds <= 0) {
+                    clearInterval(countdownTimer);
+                    refreshData();
+                    startCountdown(); // 重新开始倒计时
+                }
+            }, 1000);
+        }
+        
+        // Cookie操作函数
+         function setCookie(name, value, days = 365) {
+             const expires = new Date();
+             expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+             document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+         }
+         
+         function getCookie(name) {
+             const nameEQ = name + "=";
+             const ca = document.cookie.split(';');
+             for(let i = 0; i < ca.length; i++) {
+                 let c = ca[i];
+                 while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                 if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+             }
+             return null;
+         }
+         
+         // 主题切换功能
+         function toggleTheme() {
+             const body = document.body;
+             const themeToggle = document.querySelector('.theme-toggle');
+             
+             if (body.getAttribute('data-theme') === 'dark') {
+                 body.removeAttribute('data-theme');
+                 themeToggle.textContent = '🌙';
+                 setCookie('theme', 'light');
+             } else {
+                 body.setAttribute('data-theme', 'dark');
+                 themeToggle.textContent = '☀️';
+                 setCookie('theme', 'dark');
+             }
+         }
+        
+        // 初始化主题
+        function initTheme() {
+            const savedTheme = getCookie('theme');
+            const themeToggle = document.querySelector('.theme-toggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️';
+            } else {
+                themeToggle.textContent = '🌙';
+            }
+        }
+        
+        // 加载组合详情
+        async function loadPortfolioDetail() {
+            const portfolioId = document.getElementById('portfolioIdInput').value.trim();
+            
+            if (!portfolioId) {
+                alert('请输入组合ID');
+                return;
+            }
+            
+            // 显示加载状态
+            document.getElementById('portfolioDetailEmpty').style.display = 'none';
+            document.getElementById('portfolioDetailContent').style.display = 'none';
+            document.getElementById('portfolioDetailLoading').style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/portfolio_detail/${portfolioId}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    displayPortfolioDetail(result.data);
+                } else {
+                    alert(result.error || '获取组合详情失败');
+                    document.getElementById('portfolioDetailLoading').style.display = 'none';
+                    document.getElementById('portfolioDetailEmpty').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('获取组合详情失败:', error);
+                alert('获取组合详情失败，请检查网络连接');
+                document.getElementById('portfolioDetailLoading').style.display = 'none';
+                document.getElementById('portfolioDetailEmpty').style.display = 'block';
+            }
+        }
+        
+        // 查看组合详情（从关注组合页面跳转）
+        function viewPortfolioDetail(portfolioId, portfolioName) {
+            // 切换到组合详情标签页
+            switchTab('portfolio-detail');
+            
+            // 填入组合ID
+            document.getElementById('portfolioIdInput').value = portfolioId;
+            
+            // 自动查询
+            loadPortfolioDetail();
+        }
+        
+        // 显示组合详情
+        function displayPortfolioDetail(data) {
+            // 显示组合基本信息
+            const portfolioInfo = document.getElementById('portfolioInfo');
+            portfolioInfo.innerHTML = `
+                <h3 style="margin-bottom: 15px; color: var(--accent-color);">📈 ${data.组合名称}</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div><strong>组合ID:</strong> ${data.组合ID}</div>
+                    <div><strong>管理人:</strong> ${data.管理人}</div>
+                    <div><strong>总收益率:</strong> <span style="color: ${parseFloat(data.总收益率) >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}"> ${data.总收益率}%</span></div>
+                    <div><strong>今日收益率:</strong> <span style="color: ${parseFloat(data.今日收益率) >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}"> ${data.今日收益率}%</span></div>
+                </div>
+            `;
+            
+            // 显示持仓信息
+            const tbody = document.getElementById('portfolioPositionsTable');
+            tbody.innerHTML = '';
+            
+            if (data.持仓信息 && data.持仓信息.length > 0) {
+                data.持仓信息.forEach(position => {
+                    const row = document.createElement('tr');
+                    const profitRate = parseFloat(position.盈亏比.replace('%', ''));
+                    const profitColor = profitRate >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
+                    
+                    row.innerHTML = `
+                        <td>
+                            <div style="font-weight: 600;">${position.股票名称}</div>
+                            <div style="color: var(--text-muted); font-size: 0.9em;">${position.股票代码}</div>
+                        </td>
+                        <td>
+                            <div>${position.成本价}</div>
+                            <div style="color: var(--text-muted); font-size: 0.9em;">${position.现价}</div>
+                        </td>
+                        <td style="color: ${profitColor}; font-weight: 600;">${position.盈亏比}</td>
+                        <td>${position.仓位}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="4" style="text-align: center; color: var(--text-muted);">暂无持仓信息</td>';
+                tbody.appendChild(row);
+            }
+            
+            // 隐藏加载状态，显示内容
+            document.getElementById('portfolioDetailLoading').style.display = 'none';
+            document.getElementById('portfolioDetailContent').style.display = 'block';
+        }
+        
+        // 测试持仓详情功能
+        async function testPortfolioDetail() {
+            console.log('=== 开始测试持仓详情 ===');
+            
+            // 直接测试API调用
+            try {
+                console.log('正在调用API...');
+                const response = await fetch('/api/portfolio_detail/900209381');
+                console.log('API响应状态:', response.status);
+                const result = await response.json();
+                console.log('API响应数据:', result);
+                
+                // 在页面上显示测试结果
+                const testDiv = document.createElement('div');
+                testDiv.style.cssText = 'position: fixed; top: 10px; right: 10px; background: white; border: 2px solid #007acc; padding: 10px; max-width: 400px; z-index: 9999; max-height: 300px; overflow-y: auto;';
+                testDiv.innerHTML = '<h4>API测试结果:</h4><pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                document.body.appendChild(testDiv);
+                
+                // 10秒后移除测试结果
+                setTimeout(() => {
+                    if (document.body.contains(testDiv)) {
+                        document.body.removeChild(testDiv);
+                    }
+                }, 10000);
+            } catch (error) {
+                console.error('API调用失败:', error);
+                alert('API调用失败: ' + error.message);
+            }
+        }
+         
+         // 测试创建单元格功能
+         async function testCreateCell() {
+             console.log('=== 开始测试创建单元格 ===');
+             const testCombos = [{
+                 id: '900209381',
+                 name: '炒股发财',
+                 display_name: '炒股发财',
+                 ranks: [{
+                     type: '日榜',
+                     text: '日榜3'
+                 }]
+             }];
+             console.log('测试组合数组:', testCombos);
+             
+             try {
+                 console.log('调用createComboCellWithDetails...');
+                 const cell = await createComboCellWithDetails(testCombos);
+                 console.log('函数执行完成，返回的cell:', cell);
+                 console.log('cell.innerHTML:', cell.innerHTML);
+                 
+                 // 在页面上显示结果
+                 const resultDiv = document.createElement('div');
+                 resultDiv.style.cssText = 'position: fixed; top: 50px; right: 10px; background: yellow; border: 2px solid red; padding: 10px; max-width: 400px; z-index: 9999;';
+                 resultDiv.innerHTML = '<h4>单元格测试结果:</h4>' + cell.innerHTML;
+                 document.body.appendChild(resultDiv);
+                 
+                 setTimeout(() => {
+                     if (document.body.contains(resultDiv)) {
+                         document.body.removeChild(resultDiv);
+                     }
+                 }, 15000);
+             } catch (error) {
+                 console.error('测试失败:', error);
+                 alert('测试失败: ' + error.message);
+             }
+         }
+         
+         // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== 页面加载完成 ===');
+            // 初始化主题
+            initTheme();
+            
+            // 初始化刷新间隔设置
+            initRefreshInterval();
+            
+            // 首次加载数据
+            console.log('=== 开始初始加载数据 ===');
+            refreshData();
+            
+            // 启动自动刷新
+            startCountdown();
+            
+            // 为组合详情输入框添加回车键支持
+            document.getElementById('portfolioIdInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    loadPortfolioDetail();
+                }
+            });
+            
+            // 添加组合名称点击事件监听
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('combo-name')) {
+                    const comboId = e.target.getAttribute('data-combo-id');
+                    const comboName = e.target.getAttribute('data-combo-name');
+                    if (comboId) {
+                        viewPortfolioDetail(comboId, comboName);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

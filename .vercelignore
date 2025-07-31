@@ -1,0 +1,36 @@
+# 数据目录
+data/
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 虚拟环境
+venv/
+env/
+.venv/
+.env/
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# 开发文件
+start.py
+需求
+
+# Git
+.git/
+.gitignore
