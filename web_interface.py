@@ -5,7 +5,6 @@
 提供调仓记录和关注组合的Web展示
 """
 
-import asyncio
 import json
 from datetime import datetime
 from flask import Flask, render_template, jsonify
@@ -39,19 +38,15 @@ def index():
 
 @app.route('/api/stock_summary')
 def get_stock_summary():
-    """获取股票调仓汇总数据API"""
+    """获取股票调仓汇总数据"""
     try:
-        # 获取股票汇总数据
-        async def get_data():
-            crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
-            try:
-                return await crawler.get_stock_summary(days_back=0, max_days_search=1)
-            finally:
-                # 确保关闭会话
-                if hasattr(crawler, 'session') and crawler.session and not crawler.session.closed:
-                    await crawler.session.close()
-        
-        stock_data = asyncio.run(get_data())
+        crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
+        try:
+            stock_data = crawler.get_stock_summary(days_back=0, max_days_search=1)
+        finally:
+            # 确保关闭会话
+            if hasattr(crawler, 'session') and crawler.session:
+                crawler.session.close()
         
         return jsonify({
             'success': True,
@@ -59,31 +54,27 @@ def get_stock_summary():
             'total': len(stock_data),
             'update_time': datetime.now().strftime('%H:%M:%S')
         })
-            
     except Exception as e:
         logger.error(f"获取股票汇总数据失败: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e),
             'data': [],
-            'total': 0
+            'total': 0,
+            'update_time': datetime.now().strftime('%H:%M:%S')
         })
 
 @app.route('/api/tc_list')
 def get_tc_list():
     """获取调仓记录API"""
     try:
-        # 获取调仓记录
-        async def get_data():
-            crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
-            try:
-                return await crawler.tc_list(days_back=0, max_days_search=1)
-            finally:
-                # 确保关闭会话
-                if hasattr(crawler, 'session') and crawler.session and not crawler.session.closed:
-                    await crawler.session.close()
-        
-        tc_data = asyncio.run(get_data())
+        crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
+        try:
+            tc_data = crawler.tc_list(days_back=0, max_days_search=1)
+        finally:
+            # 确保关闭会话
+            if hasattr(crawler, 'session') and crawler.session:
+                crawler.session.close()
         
         return jsonify({
             'success': True,
@@ -98,7 +89,8 @@ def get_tc_list():
             'success': False,
             'error': str(e),
             'data': [],
-            'total': 0
+            'total': 0,
+            'update_time': datetime.now().strftime('%H:%M:%S')
         })
 
 @app.route('/api/portfolio_detail/<portfolio_id>')
@@ -120,16 +112,13 @@ def get_portfolio_detail(portfolio_id):
         
         # 缓存未命中，从东财接口获取数据
         logger.info(f"缓存未命中，从接口获取组合详情: {portfolio_id}")
-        async def get_data():
-            crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
-            try:
-                return await crawler.get_portfolio_detail(portfolio_id)
-            finally:
-                # 确保关闭会话
-                if hasattr(crawler, 'session') and crawler.session and not crawler.session.closed:
-                    await crawler.session.close()
-        
-        portfolio_data = asyncio.run(get_data())
+        crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
+        try:
+            portfolio_data = crawler.get_portfolio_detail(portfolio_id)
+        finally:
+            # 确保关闭会话
+            if hasattr(crawler, 'session') and crawler.session:
+                crawler.session.close()
         
         if portfolio_data:
             # 将数据存入缓存，过期时间60秒（1分钟）

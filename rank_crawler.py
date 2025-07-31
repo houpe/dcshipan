@@ -11,8 +11,7 @@
 5. 显示进度条和统计信息
 """
 
-import asyncio
-import aiohttp
+import requests
 import time
 import logging
 import os
@@ -24,6 +23,7 @@ from tqdm import tqdm
 import diskcache as dc
 import schedule
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -58,6 +58,9 @@ class RankCrawler:
         self.session = None
         self.running = False
         
+        # 初始化requests session
+        self.create_session()
+        
         logger.info(f"爬虫初始化完成，去重功能: {'启用' if self.enable_deduplication else '禁用'}")
         
     def ensure_cache_dir(self):
@@ -65,46 +68,47 @@ class RankCrawler:
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
     
-    async def create_session(self):
+    def create_session(self):
         """创建HTTP会话"""
-        if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=30)
-            connector = aiohttp.TCPConnector(limit=100, limit_per_host=30)
-            self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+        if self.session is None:
+            self.session = requests.Session()
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
     
-    async def close_session(self):
+    def close_session(self):
         """关闭HTTP会话"""
-        if self.session and not self.session.closed:
-            await self.session.close()
+        if self.session:
+            self.session.close()
             self.session = None
     
-    async def fetch_with_retry(self, url: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
+    def fetch_with_retry(self, url: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
         """带重试机制的HTTP请求"""
-        await self.create_session()
+        self.create_session()
             
         for attempt in range(max_retries):
             try:
-                async with self.session.get(url) as response:
-                    if response.status == 200:
-                        text = await response.text()
-                        try:
-                            data = json.loads(text)
-                            if isinstance(data, dict) and data.get('result') == '0':
-                                return data
-                            else:
-                                logger.warning(f"API返回错误: {data.get('message', 'Unknown error')}")
-                        except json.JSONDecodeError:
-                            logger.warning(f"无法解析JSON响应: {text[:100]}...")
-                    else:
-                        logger.warning(f"HTTP请求失败: {response.status}")
+                response = self.session.get(url, timeout=30)
+                if response.status_code == 200:
+                    text = response.text
+                    try:
+                        data = json.loads(text)
+                        if isinstance(data, dict) and data.get('result') == '0':
+                            return data
+                        else:
+                            logger.warning(f"API返回错误: {data.get('message', 'Unknown error')}")
+                    except json.JSONDecodeError:
+                        logger.warning(f"无法解析JSON响应: {text[:100]}...")
+                else:
+                    logger.warning(f"HTTP请求失败: {response.status_code}")
             except Exception as e:
                 logger.warning(f"请求失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(1)  # 重试前等待1秒
+                    time.sleep(1)  # 重试前等待1秒
         
         return None
     
-    async def fetch_rank_data(self, rank_type: str, rank_config: Dict) -> Optional[Dict[str, Any]]:
+    def fetch_rank_data(self, rank_type: str, rank_config: Dict) -> Optional[Dict[str, Any]]:
         """获取单个排行榜数据（支持分页）"""
         all_data = []
         target_count = rank_config['recCnt']
@@ -118,7 +122,7 @@ class RankCrawler:
             
             url = f"{self.base_url}?type=rt_get_rank&rankType={rank_config['rankType']}&recIdx={current_page}&recCnt={current_count}&rankid=0"
             
-            data = await self.fetch_with_retry(url)
+            data = self.fetch_with_retry(url)
             if data and 'data' in data and len(data['data']) > 0:
                 all_data.extend(data['data'])
                 current_page += 1
@@ -174,9 +178,9 @@ class RankCrawler:
             'ranks': ranks
         }
     
-    async def fetch_all_rank_data(self) -> Dict[str, Any]:
+    def fetch_all_rank_data(self) -> Dict[str, Any]:
         """获取所有排行榜数据"""
-        await self.create_session()
+        self.create_session()
         
         results = {}
         total_tasks = len(self.rank_types)
@@ -184,26 +188,32 @@ class RankCrawler:
         with tqdm(total=total_tasks, desc="获取排行榜数据", unit="个") as pbar:
             start_time = time.time()
             
-            # 并发获取所有排行榜数据
-            tasks = []
-            for rank_type, rank_config in self.rank_types.items():
-                task = self.fetch_rank_data(rank_type, rank_config)
-                tasks.append((rank_type, task))
-            
-            # 等待所有任务完成
-            for rank_type, task in tasks:
-                data = await task
-                if data:
-                    results[rank_type] = data
+            # 使用线程池并发获取所有排行榜数据
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                # 提交所有任务
+                future_to_rank = {}
+                for rank_type, rank_config in self.rank_types.items():
+                    future = executor.submit(self.fetch_rank_data, rank_type, rank_config)
+                    future_to_rank[future] = rank_type
                 
-                pbar.update(1)
-                elapsed_time = time.time() - start_time
-                pbar.set_postfix({
-                    '已完成': f"{pbar.n}/{total_tasks}",
-                    '耗时': f"{elapsed_time:.2f}s"
-                })
+                # 等待所有任务完成
+                for future in as_completed(future_to_rank):
+                    rank_type = future_to_rank[future]
+                    try:
+                        data = future.result()
+                        if data:
+                            results[rank_type] = data
+                    except Exception as e:
+                        logger.error(f"获取排行榜 {rank_type} 数据失败: {str(e)}")
+                    
+                    pbar.update(1)
+                    elapsed_time = time.time() - start_time
+                    pbar.set_postfix({
+                        '已完成': f"{pbar.n}/{total_tasks}",
+                        '耗时': f"{elapsed_time:.2f}s"
+                    })
         
-        await self.close_session()
+        self.close_session()
         return results
     
     def deduplicate_rank_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -365,14 +375,14 @@ class RankCrawler:
         
         return is_morning or is_afternoon
     
-    async def run_update(self) -> bool:
+    def run_update(self) -> bool:
         """执行一次数据更新"""
         try:
             logger.info("🌐 开始实时请求排行榜数据...")
             start_time = time.time()
             
             # 获取所有排行榜数据
-            rank_data = await self.fetch_all_rank_data()
+            rank_data = self.fetch_all_rank_data()
             
             if rank_data:
                 # 保存数据
@@ -400,31 +410,14 @@ class RankCrawler:
             
         logger.info("开始定时数据更新...")
         
-        # 在新的事件循环中运行异步任务
-        def run_async_update():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                success = loop.run_until_complete(self.run_update())
-                if success:
-                    logger.info("定时数据更新成功")
-                else:
-                    logger.warning("定时数据更新失败")
-            except Exception as e:
-                logger.error(f"定时数据更新异常: {str(e)}")
-            finally:
-                loop.close()
-        
-        # 在线程中运行以避免阻塞
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            try:
-                future = executor.submit(run_async_update)
-                future.result(timeout=120)  # 2分钟超时
-            except concurrent.futures.TimeoutError:
-                logger.error("定时更新任务超时")
-            except Exception as e:
-                logger.error(f"定时更新任务失败: {str(e)}")
+        try:
+            success = self.run_update()
+            if success:
+                logger.info("定时数据更新成功")
+            else:
+                logger.warning("定时数据更新失败")
+        except Exception as e:
+            logger.error(f"定时数据更新异常: {str(e)}")
     
     def setup_schedule(self, refresh_interval=30):
         """设置定时任务"""
@@ -485,7 +478,7 @@ class RankCrawler:
         else:
             print("暂无缓存数据")
     
-    async def get_cached_rank_list_with_auto_update(self) -> Dict[str, Any]:
+    def get_cached_rank_list_with_auto_update(self) -> Dict[str, Any]:
         """读取缓存中的组合列表，若获取的数据为0，尝试重新更新组合列表"""
         import time
         start_time = time.time()
@@ -506,7 +499,7 @@ class RankCrawler:
         try:
             print("🔄 缓存无效，开始实时请求排行榜数据...")
             update_start = time.time()
-            success = await self.run_update()
+            success = self.run_update()
             
             if success:
                 # 重新加载更新后的数据
@@ -529,25 +522,25 @@ class RankCrawler:
             logger.error(f"重新获取数据失败: {str(e)}")
             return {}
     
-    async def fetch_portfolio_holdings(self, portfolio_id: str, rec_count: int = 50) -> Optional[Dict[str, Any]]:
+    def fetch_portfolio_holdings(self, portfolio_id: str, rec_count: int = 50) -> Optional[Dict[str, Any]]:
         """获取单个组合的调仓记录"""
         url = f"https://emdcspzhapi.dfcfs.cn/rtV1?type=rt_hold_change72&zh={portfolio_id}&recIdx=1&recCnt={rec_count}"
         
         try:
             if not self.session:
-                await self.create_session()
+                self.create_session()
             
-            async with self.session.get(url, timeout=10) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get('result') == '0':
-                        return data
-                    else:
-                        logger.warning(f"获取组合{portfolio_id}调仓记录失败: {data.get('message', 'Unknown error')}")
-                        return None
+            response = self.session.get(url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('result') == '0':
+                    return data
                 else:
-                    logger.error(f"获取组合{portfolio_id}调仓记录HTTP错误: {response.status}")
+                    logger.warning(f"获取组合{portfolio_id}调仓记录失败: {data.get('message', 'Unknown error')}")
                     return None
+            else:
+                logger.error(f"获取组合{portfolio_id}调仓记录HTTP错误: {response.status_code}")
+                return None
                     
         except Exception as e:
             logger.error(f"获取组合{portfolio_id}调仓记录异常: {str(e)}")
@@ -611,7 +604,7 @@ class RankCrawler:
         
         return target_date.strftime('%Y%m%d')
     
-    async def tc_list(self, days_back: int = 0, max_days_search: int = 3, use_cache: bool = True) -> List[Dict[str, Any]]:
+    def tc_list(self, days_back: int = 0, max_days_search: int = 3, use_cache: bool = True) -> List[Dict[str, Any]]:
         """获取组合调仓记录列表
         
         Args:
@@ -625,15 +618,15 @@ class RankCrawler:
         # 1. 获取组合列表数据
         if use_cache:
             print("📋 使用缓存数据获取组合列表")
-            cached_data = await self.get_cached_rank_list_with_auto_update()
+            cached_data = self.get_cached_rank_list_with_auto_update()
         else:
             print("🌐 实时请求组合列表数据")
-            cached_data = await self.fetch_all_rank_data()
+            cached_data = self.fetch_all_rank_data()
             
             # 如果实时请求失败，回退到缓存数据
             if not cached_data or not cached_data.get('data'):
                 print("⚠️ 实时请求失败，回退到缓存数据")
-                cached_data = await self.get_cached_rank_list_with_auto_update()
+                cached_data = self.get_cached_rank_list_with_auto_update()
         
         if not cached_data or not cached_data.get('data'):
             print("❌ 无法获取组合列表数据")
@@ -657,51 +650,53 @@ class RankCrawler:
                         'name': portfolio_name
                     })
         
-        # 4. 异步获取所有组合的调仓记录
-        # 创建异步任务
-        tasks = []
-        for portfolio in portfolios:
-            task = self.fetch_portfolio_holdings(portfolio['id'])
-            tasks.append((portfolio, task))
-        
-        # 执行异步任务
+        # 4. 使用线程池并发获取所有组合的调仓记录
         results = []
-        with tqdm(total=len(tasks), desc="获取调仓记录", unit="个") as pbar:
-            for portfolio, task in tasks:
-                try:
-                    holdings_data = await task
-                    pbar.set_postfix(组合=portfolio['name'][:10])
-                    
-                    if holdings_data and holdings_data.get('data'):
-                        # 解析调仓记录
-                        for record in holdings_data['data']:
-                            tzrq = record.get('tzrq', '')
-                            
-                            # 只要目标日期范围内的数据
-                            if tzrq in target_dates:
-                                cwhj_mr = record.get('cwhj_mr', '-')
-                                cwhj_mc = record.get('cwhj_mc', '-')
-                                
-                                # 解析交易动作
-                                action = self.parse_trading_action(cwhj_mr, cwhj_mc)
-                                
-                                if action:
-                                    result_record = {
-                                        '日期': tzrq,
-                                        '组合ID': portfolio['id'],
-                                        '组合名称': portfolio['name'],
-                                        '调仓股票': record.get('stkMktCode', ''),
-                                        '股票名称': record.get('stkName', ''),
-                                        '调仓情况': action,
-                                        '成交价格': record.get('cjjg_mr' if action == '买入' else 'cjjg_mc', '-'),
-                                        '持仓比例': cwhj_mr if action == '买入' else cwhj_mc
-                                    }
-                                    results.append(result_record)
-                    
-                except Exception as e:
-                    logger.error(f"处理组合{portfolio['name']}调仓记录失败: {str(e)}")
+        with tqdm(total=len(portfolios), desc="获取调仓记录", unit="个") as pbar:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                # 提交所有任务
+                future_to_portfolio = {}
+                for portfolio in portfolios:
+                    future = executor.submit(self.fetch_portfolio_holdings, portfolio['id'])
+                    future_to_portfolio[future] = portfolio
                 
-                pbar.update(1)
+                # 等待所有任务完成
+                for future in as_completed(future_to_portfolio):
+                    portfolio = future_to_portfolio[future]
+                    try:
+                        holdings_data = future.result()
+                        pbar.set_postfix(组合=portfolio['name'][:10])
+                        
+                        if holdings_data and holdings_data.get('data'):
+                            # 解析调仓记录
+                            for record in holdings_data['data']:
+                                tzrq = record.get('tzrq', '')
+                                
+                                # 只要目标日期范围内的数据
+                                if tzrq in target_dates:
+                                    cwhj_mr = record.get('cwhj_mr', '-')
+                                    cwhj_mc = record.get('cwhj_mc', '-')
+                                    
+                                    # 解析交易动作
+                                    action = self.parse_trading_action(cwhj_mr, cwhj_mc)
+                                    
+                                    if action:
+                                        result_record = {
+                                            '日期': tzrq,
+                                            '组合ID': portfolio['id'],
+                                            '组合名称': portfolio['name'],
+                                            '调仓股票': record.get('stkMktCode', ''),
+                                            '股票名称': record.get('stkName', ''),
+                                            '调仓情况': action,
+                                            '成交价格': record.get('cjjg_mr' if action == '买入' else 'cjjg_mc', '-'),
+                                            '持仓比例': cwhj_mr if action == '买入' else cwhj_mc
+                                        }
+                                        results.append(result_record)
+                        
+                    except Exception as e:
+                        logger.error(f"处理组合{portfolio['name']}调仓记录失败: {str(e)}")
+                    
+                    pbar.update(1)
         
         # 5. 输出结果统计
         elapsed_time = time.time() - start_time
@@ -709,7 +704,7 @@ class RankCrawler:
         
         return results
     
-    async def get_stock_summary(self, days_back=0, max_days_search=3):
+    def get_stock_summary(self, days_back=0, max_days_search=3):
         """
         获取股票调仓汇总数据，按股票汇总买入组合数和卖出组合数
         
@@ -721,10 +716,10 @@ class RankCrawler:
             list: 股票汇总数据列表，按买入组合数排序
         """
         # 获取调仓记录（实时请求，不使用缓存）
-        records = await self.tc_list(days_back=days_back, max_days_search=max_days_search, use_cache=False)
+        records = self.tc_list(days_back=days_back, max_days_search=max_days_search, use_cache=False)
         
         # 获取组合排名信息
-        cached_data = await self.get_cached_rank_list_with_auto_update()
+        cached_data = self.get_cached_rank_list_with_auto_update()
         portfolio_ranks = {}
         if cached_data and cached_data.get('data'):
             for rank_type, rank_data in cached_data.get('data', {}).items():
@@ -826,11 +821,11 @@ class RankCrawler:
         
         return result
 
-    async def get_portfolio_detail(self, portfolio_id: str) -> Optional[Dict[str, Any]]:
+    def get_portfolio_detail(self, portfolio_id: str) -> Optional[Dict[str, Any]]:
         url = f"{self.base_url}?type=rt_zhuhe_detail72&zh={portfolio_id}"
         
         try:
-            data = await self.fetch_with_retry(url)
+            data = self.fetch_with_retry(url)
             if data and data.get('result') == '0' and 'data' in data:
                 portfolio_data = data['data']
                 
@@ -902,12 +897,12 @@ if __name__ == "__main__":
     # 根据配置初始化爬虫
     crawler = RankCrawler(cache_dir=CACHE_DIR, enable_deduplication=ENABLE_DEDUPLICATION)
     
-    async def main():
+    def main():
         print("股票组合排行榜爬虫启动")
         
         # 程序启动时执行首次更新
         logger.info("程序启动，执行首次数据更新")
-        success = await crawler.run_update()
+        success = crawler.run_update()
         
         if success:
             # 启动定时任务
@@ -925,7 +920,7 @@ if __name__ == "__main__":
             logger.error("首次数据更新失败，程序退出")
     
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         logger.info("程序被用户中断")
     except Exception as e:
