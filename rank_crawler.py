@@ -181,7 +181,7 @@ class RankCrawler:
         results = {}
         total_tasks = len(self.rank_types)
         
-        with tqdm(total=total_tasks, desc="获取排行榜数据", unit="个") as pbar:
+        with tqdm(total=total_tasks, desc="fetch_all_rank_data 获取排行榜数据", unit="个") as pbar:
             start_time = time.time()
             
             # 并发获取所有排行榜数据
@@ -368,9 +368,10 @@ class RankCrawler:
     async def run_update(self) -> bool:
         """执行一次数据更新"""
         try:
-            logger.info("🌐 开始实时请求排行榜数据...")
+            logger.info("🌐 我是定时==任务，开始实时请求排行榜数据...")
             start_time = time.time()
             
+            print("run_update调用的")
             # 获取所有排行榜数据
             rank_data = await self.fetch_all_rank_data()
             
@@ -381,7 +382,7 @@ class RankCrawler:
                 elapsed_time = time.time() - start_time
                 total_records = sum(len(data.get('data', [])) for data in rank_data.values())
                 
-                logger.info(f"🌐 实时数据获取完成 - 耗时: {elapsed_time:.2f}秒, 榜单: {len(rank_data)}个, 记录: {total_records}条")
+                logger.info(f"🌐 我是定时==任务实时数据获取完成 - 耗时: {elapsed_time:.2f}秒, 榜单: {len(rank_data)}个, 记录: {total_records}条")
                 
                 return True
             else:
@@ -627,7 +628,8 @@ class RankCrawler:
             print("📋 使用缓存数据获取组合列表")
             cached_data = await self.get_cached_rank_list_with_auto_update()
         else:
-            print("🌐 实时请求组合列表数据")
+            print("🌐 tclist接口，实时请求组合列表数据")
+            print("tc_list_调用的")
             cached_data = await self.fetch_all_rank_data()
             
             # 如果实时请求失败，回退到缓存数据
@@ -911,7 +913,7 @@ if __name__ == "__main__":
         
         if success:
             # 启动定时任务
-            print(f"定时任务启动 - 更新间隔: {REFRESH_INTERVAL}秒")
+            print(f"定时任务启动 - 各榜单，组合列表，更新间隔: {REFRESH_INTERVAL}秒")
             
             try:
                 # 使用配置的刷新间隔

@@ -686,12 +686,12 @@
         
         <div id="trading-records" class="tab-content active">
             
-            <div id="stockSummaryLoading" class="loading">
+            <div id="stockSummaryLoading" class="loading" style="display: none;">
                 <div class="loading-spinner"></div>
                 <div>正在加载调仓数据...</div>
             </div>
             
-            <div id="stockSummaryContent" style="display: none;">
+            <div id="stockSummaryContent">
                 <table class="data-table">
                     <thead>
                         <tr>
@@ -760,6 +760,8 @@
         </div>
     </div>
     
+    <!-- 引入jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         let refreshTimer;
         let countdownTimer;
@@ -785,9 +787,9 @@
         }
         
         // 改变刷新间隔
+        // 改变刷新间隔 - jQuery版本
         function changeRefreshInterval() {
-            const select = document.getElementById('refreshInterval');
-            refreshInterval = parseInt(select.value);
+            refreshInterval = parseInt($('#refreshInterval').val());
             
             // 保存到cookie
             setCookie('refreshInterval', refreshInterval);
@@ -797,62 +799,77 @@
             startCountdown();
         }
         
-        // 初始化刷新间隔设置
+        // 初始化刷新间隔设置 - jQuery版本
         function initRefreshInterval() {
             const savedInterval = getCookie('refreshInterval');
             if (savedInterval) {
                 refreshInterval = parseInt(savedInterval);
-                document.getElementById('refreshInterval').value = refreshInterval;
+                $('#refreshInterval').val(refreshInterval);
             }
         }
         
-        // 切换标签页
+        // 切换标签页 - jQuery版本
         function switchTab(tabId) {
             // 隐藏所有标签内容
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+            $('.tab-content').removeClass('active');
             
             // 移除所有标签的激活状态
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
+            $('.tab').removeClass('active');
             
             // 显示选中的标签内容
-            document.getElementById(tabId).classList.add('active');
+            $('#' + tabId).addClass('active');
             
             // 激活选中的标签
-            event.target.classList.add('active');
+            $(event.target).addClass('active');
         }
         
-        // 刷新数据
-        async function refreshData() {
+        // 刷新数据 - jQuery版本
+        function refreshData(showLoading = true) {
             console.log('=== refreshData 开始 ===');
-            try {
-                // 显示加载状态
-                document.getElementById('stockSummaryLoading').style.display = 'block';
-                document.getElementById('stockSummaryContent').style.display = 'none';
-                
-                // 获取股票汇总数据
-                const response = await fetch('/api/stock_summary');
-                const data = await response.json();
-                console.log('API响应数据:', data);
-                
-                if (data.success) {
-                    await updateStockSummary(data.data);
-                    document.getElementById('lastUpdate').textContent = data.update_time;
-                } else {
-                    console.error('获取数据失败:', data.error);
-                }
-                
-                // 隐藏加载状态
-                document.getElementById('stockSummaryLoading').style.display = 'none';
-                document.getElementById('stockSummaryContent').style.display = 'block';
-                
-            } catch (error) {
-                console.error('刷新数据失败:', error);
-                document.getElementById('stockSummaryLoading').style.display = 'none';
+            
+            // 根据参数决定是否显示加载状态
+            if (showLoading) {
+                $('#stockSummaryLoading').show();
+                $('#stockSummaryContent').hide();
             }
+            
+            // 使用jQuery AJAX获取股票汇总数据
+            $.ajax({
+                url: '/api/stock_summary',
+                type: 'GET',
+                dataType: 'json',
+                timeout: 30000, // 30秒超时
+                success: function(data) {
+                    console.log('API响应数据:', data);
+                    
+                    if (data.success) {
+                        updateStockSummary(data.data);
+                        $('#lastUpdate').text(data.update_time);
+                    } else {
+                        console.error('获取数据失败:', data.error);
+                    }
+                    
+                    // 隐藏加载状态，显示内容
+                    $('#stockSummaryLoading').hide();
+                    $('#stockSummaryContent').show();
+                },
+                error: function(xhr, status, error) {
+                    console.error('刷新数据失败:', error);
+                    console.error('状态:', status);
+                    console.error('响应:', xhr.responseText);
+                    
+                    // 隐藏加载状态
+                    $('#stockSummaryLoading').hide();
+                    $('#stockSummaryContent').show();
+                    
+                    // 显示错误提示
+                    if (status === 'timeout') {
+                        alert('请求超时，请检查网络连接');
+                    } else {
+                        alert('数据加载失败，请稍后重试');
+                    }
+                }
+            });
         }
         
         // 截取组合名字并添加点击事件
@@ -959,8 +976,8 @@
         // 用于跟踪正在加载的组合，避免重复请求
         const loadingPortfolios = new Set();
         
-        // 异步加载组合详情
-        async function loadPortfolioDetailsAsync(comboId, loadingElementId) {
+        // 异步加载组合详情 - jQuery版本
+        function loadPortfolioDetailsAsync(comboId, loadingElementId) {
             // 防止重复加载同一个组合
             if (loadingPortfolios.has(comboId)) {
                 console.log('组合', comboId, '已在加载中，跳过重复请求');
@@ -969,57 +986,69 @@
             
             loadingPortfolios.add(comboId);
             console.log('开始异步加载组合详情，组合ID:', comboId);
-            try {
-                console.log('发送API请求到:', `/api/portfolio_detail/${comboId}`);
-                const response = await fetch(`/api/portfolio_detail/${comboId}`);
-                console.log('API响应状态:', response.status);
-                const result = await response.json();
-                console.log('API响应数据:', result);
-                
-                const loadingElement = document.getElementById(loadingElementId);
-                if (!loadingElement) {
-                    console.log('加载元素已不存在，可能页面已刷新');
-                    return;
-                }
-                
-                if (result.success && result.data && result.data.持仓信息) {
-                    console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
-                    const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
-                    let holdingsHtml = '';
-                    holdings.forEach(holding => {
-                        const profitRate = parseFloat(holding.盈亏比.replace('%', ''));
-                        let profitColor;
-                        if (profitRate > 0) {
-                            profitColor = '#ef4444'; // 红色
-                        } else if (profitRate === 0) {
-                            profitColor = '#999'; // 灰色
-                        } else {
-                            profitColor = '#22c55e'; // 绿色
-                        }
-                        holdingsHtml += `<div style="font-size: 0.8em; margin: 1px 0; white-space: nowrap;">
-                            <span style="font-weight: 600;">${holding.股票名称}</span>/<span style="color: #999;">${holding.股票代码}</span> <span>${holding.成本价}</span>/<span style="color: #999;">${holding.现价}</span> <span style="color: ${profitColor}; font-weight: bold;">${holding.盈亏比}</span> <span>${holding.仓位}</span>
-                        </div>`;
-                    });
-                    if (result.data.持仓信息.length > 3) {
-                        holdingsHtml += '<div style="color: #999;">...</div>';
+            console.log('发送API请求到:', `/api/portfolio_detail/${comboId}`);
+            
+            $.ajax({
+                url: `/api/portfolio_detail/${comboId}`,
+                type: 'GET',
+                dataType: 'json',
+                timeout: 15000, // 15秒超时
+                success: function(result) {
+                    console.log('API响应数据:', result);
+                    
+                    const $loadingElement = $('#' + loadingElementId);
+                    if ($loadingElement.length === 0) {
+                        console.log('加载元素已不存在，可能页面已刷新');
+                        return;
                     }
-                    loadingElement.innerHTML = holdingsHtml;
-                     console.log('持仓详情加载完成');
-                 } else {
-                     console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
-                     loadingElement.innerHTML = '<div style="font-size: 0.7em; color: #999;">暂无持仓信息</div>';
-                 }
-             } catch (error) {
-                 console.error('获取组合详情失败:', error);
-                 const loadingElement = document.getElementById(loadingElementId);
-                 if (loadingElement) {
-                     loadingElement.innerHTML = '<div style="font-size: 0.7em; color: red;">[获取详情失败]</div>';
-                 }
-             } finally {
-                 // 无论成功还是失败，都从加载集合中移除
-                 loadingPortfolios.delete(comboId);
-             }
-         }
+                    
+                    if (result.success && result.data && result.data.持仓信息) {
+                        console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
+                        const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
+                        let holdingsHtml = '';
+                        holdings.forEach(holding => {
+                            const profitRate = parseFloat(holding.盈亏比.replace('%', ''));
+                            let profitColor;
+                            if (profitRate > 0) {
+                                profitColor = '#ef4444'; // 红色
+                            } else if (profitRate === 0) {
+                                profitColor = '#999'; // 灰色
+                            } else {
+                                profitColor = '#22c55e'; // 绿色
+                            }
+                            holdingsHtml += `<div style="font-size: 0.8em; margin: 1px 0; white-space: nowrap;">
+                                <span style="font-weight: 600;">${holding.股票名称}</span>/<span style="color: #999;">${holding.股票代码}</span> <span>${holding.成本价}</span>/<span style="color: #999;">${holding.现价}</span> <span style="color: ${profitColor}; font-weight: bold;">${holding.盈亏比}</span> <span>${holding.仓位}</span>
+                            </div>`;
+                        });
+                        if (result.data.持仓信息.length > 3) {
+                            holdingsHtml += '<div style="color: #999;">...</div>';
+                        }
+                        $loadingElement.html(holdingsHtml);
+                        console.log('持仓详情加载完成');
+                    } else {
+                        console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
+                        $loadingElement.html('<div style="font-size: 0.7em; color: #999;">暂无持仓信息</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取组合详情失败:', error);
+                    console.error('状态:', status);
+                    
+                    const $loadingElement = $('#' + loadingElementId);
+                    if ($loadingElement.length > 0) {
+                        if (status === 'timeout') {
+                            $loadingElement.html('<div style="font-size: 0.7em; color: red;">[请求超时]</div>');
+                        } else {
+                            $loadingElement.html('<div style="font-size: 0.7em; color: red;">[获取详情失败]</div>');
+                        }
+                    }
+                },
+                complete: function() {
+                    // 无论成功还是失败，都从加载集合中移除
+                    loadingPortfolios.delete(comboId);
+                }
+            });
+        }
         
         // 显示popover
         function showPopover(element, comboName, comboId) {
@@ -1063,31 +1092,19 @@
             }
         }
         
-        // 更新股票汇总表格
+        // 更新股票汇总表格 - jQuery版本
         function updateStockSummary(stockData) {
             console.log('=== updateStockSummary 开始执行 ===');
             console.log('接收到的数据长度:', stockData.length);
             console.log('第一条数据:', stockData[0]);
             console.log('stockData:', stockData);
-            const tbody = document.getElementById('stockSummaryTable');
-            tbody.innerHTML = '';
+            const $tbody = $('#stockSummaryTable');
+            $tbody.empty();
             
             for (const stock of stockData) {
-                const row = document.createElement('tr');
-                
                 // 根据数值决定样式类
                 const buyClass = stock.买入组合数 === 0 ? 'action-zero' : 'action-buy';
                 const sellClass = stock.卖出组合数 === 0 ? 'action-zero' : 'action-sell';
-                
-                // 创建合并的代码/名称单元格
-                const codeNameCell = document.createElement('td');
-                codeNameCell.innerHTML = `<div style="line-height: 1.2;">${stock.股票代码}<br/>${stock.股票名称}</div>`;
-                
-                const buyCountCell = document.createElement('td');
-                buyCountCell.innerHTML = `<span class="${buyClass}">${stock.买入组合数}</span>`;
-                
-                const sellCountCell = document.createElement('td');
-                sellCountCell.innerHTML = `<span class="${sellClass}">${stock.卖出组合数}</span>`;
                 
                 // 创建带详情的组合单元格
                 console.log('准备创建买入组合单元格:', stock.买入组合);
@@ -1099,8 +1116,7 @@
                     console.log('买入组合单元格创建成功');
                 } catch (error) {
                     console.error('创建买入组合单元格失败:', error);
-                    buyCell = document.createElement('td');
-                    buyCell.innerHTML = stock.买入组合 || '-';
+                    buyCell = $('<td>').html(stock.买入组合 || '-')[0];
                 }
                 
                 console.log('准备创建卖出组合单元格:', stock.卖出组合);
@@ -1110,41 +1126,42 @@
                     console.log('卖出组合单元格创建成功');
                 } catch (error) {
                     console.error('创建卖出组合单元格失败:', error);
-                    sellCell = document.createElement('td');
-                    sellCell.innerHTML = stock.卖出组合 || '-';
+                    sellCell = $('<td>').html(stock.卖出组合 || '-')[0];
                 }
                 console.log('组合单元格创建完成');
                 
-                // 添加所有单元格到行
-                row.appendChild(codeNameCell);
-                row.appendChild(buyCountCell);
-                row.appendChild(sellCountCell);
-                row.appendChild(buyCell);
-                row.appendChild(sellCell);
-                
-                tbody.appendChild(row);
+                // 创建行并添加所有单元格
+                const rowHtml = `
+                    <tr>
+                        <td><div style="line-height: 1.2;">${stock.股票代码}<br/>${stock.股票名称}</div></td>
+                        <td><span class="${buyClass}">${stock.买入组合数}</span></td>
+                        <td><span class="${sellClass}">${stock.卖出组合数}</span></td>
+                    </tr>
+                `;
+                const $row = $(rowHtml);
+                $row.append($(buyCell));
+                $row.append($(sellCell));
+                $tbody.append($row);
             }
             
-            // 添加事件监听器
-             document.querySelectorAll('.combo-name').forEach(element => {
-                 element.addEventListener('click', function() {
-                     const comboId = this.getAttribute('data-combo-id');
-                     if (comboId) {
-                         const homeUrl = `https://groupwap.eastmoney.com/group/reality/info.html?zh=${comboId}&appfenxiang=1`;
-                         window.open(homeUrl, '_blank');
-                     }
-                 });
-             });
+            // 添加事件监听器 - jQuery版本
+            $('.combo-name').off('click').on('click', function() {
+                const comboId = $(this).attr('data-combo-id');
+                if (comboId) {
+                    const homeUrl = `https://groupwap.eastmoney.com/group/reality/info.html?zh=${comboId}&appfenxiang=1`;
+                    window.open(homeUrl, '_blank');
+                }
+            });
         }
         
 
         
-        // 启动倒计时
+        // 启动倒计时 - jQuery版本
         function startCountdown() {
             countdownSeconds = refreshInterval;
             countdownTimer = setInterval(() => {
                 countdownSeconds--;
-                document.getElementById('nextRefresh').textContent = countdownSeconds;
+                $('#nextRefresh').text(countdownSeconds);
                 
                 if (countdownSeconds <= 0) {
                     clearInterval(countdownTimer);
@@ -1172,38 +1189,38 @@
              return null;
          }
          
-         // 主题切换功能
+         // 主题切换功能 - jQuery版本
          function toggleTheme() {
-             const body = document.body;
-             const themeToggle = document.querySelector('.theme-toggle');
+             const $body = $('body');
+             const $themeToggle = $('.theme-toggle');
              
-             if (body.getAttribute('data-theme') === 'dark') {
-                 body.removeAttribute('data-theme');
-                 themeToggle.textContent = '🌙';
+             if ($body.attr('data-theme') === 'dark') {
+                 $body.removeAttr('data-theme');
+                 $themeToggle.text('🌙');
                  setCookie('theme', 'light');
              } else {
-                 body.setAttribute('data-theme', 'dark');
-                 themeToggle.textContent = '☀️';
+                 $body.attr('data-theme', 'dark');
+                 $themeToggle.text('☀️');
                  setCookie('theme', 'dark');
              }
          }
         
-        // 初始化主题
+        // 初始化主题 - jQuery版本
         function initTheme() {
             const savedTheme = getCookie('theme');
-            const themeToggle = document.querySelector('.theme-toggle');
+            const $themeToggle = $('.theme-toggle');
             
             if (savedTheme === 'dark') {
-                document.body.setAttribute('data-theme', 'dark');
-                themeToggle.textContent = '☀️';
+                $('body').attr('data-theme', 'dark');
+                $themeToggle.text('☀️');
             } else {
-                themeToggle.textContent = '🌙';
+                $themeToggle.text('🌙');
             }
         }
         
-        // 加载组合详情
-        async function loadPortfolioDetail() {
-            const portfolioId = document.getElementById('portfolioIdInput').value.trim();
+        // 加载组合详情 - jQuery版本
+        function loadPortfolioDetail() {
+            const portfolioId = $('#portfolioIdInput').val().trim();
             
             if (!portfolioId) {
                 alert('请输入组合ID');
@@ -1211,46 +1228,56 @@
             }
             
             // 显示加载状态
-            document.getElementById('portfolioDetailEmpty').style.display = 'none';
-            document.getElementById('portfolioDetailContent').style.display = 'none';
-            document.getElementById('portfolioDetailLoading').style.display = 'block';
+            $('#portfolioDetailEmpty').hide();
+            $('#portfolioDetailContent').hide();
+            $('#portfolioDetailLoading').show();
             
-            try {
-                const response = await fetch(`/api/portfolio_detail/${portfolioId}`);
-                const result = await response.json();
-                
-                if (result.success && result.data) {
-                    displayPortfolioDetail(result.data);
-                } else {
-                    alert(result.error || '获取组合详情失败');
-                    document.getElementById('portfolioDetailLoading').style.display = 'none';
-                    document.getElementById('portfolioDetailEmpty').style.display = 'block';
+            $.ajax({
+                url: `/api/portfolio_detail/${portfolioId}`,
+                type: 'GET',
+                dataType: 'json',
+                timeout: 20000, // 20秒超时
+                success: function(result) {
+                    if (result.success && result.data) {
+                        displayPortfolioDetail(result.data);
+                    } else {
+                        alert(result.error || '获取组合详情失败');
+                        $('#portfolioDetailLoading').hide();
+                        $('#portfolioDetailEmpty').show();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取组合详情失败:', error);
+                    console.error('状态:', status);
+                    
+                    if (status === 'timeout') {
+                        alert('请求超时，请检查网络连接');
+                    } else {
+                        alert('获取组合详情失败，请稍后重试');
+                    }
+                    
+                    $('#portfolioDetailLoading').hide();
+                    $('#portfolioDetailEmpty').show();
                 }
-            } catch (error) {
-                console.error('获取组合详情失败:', error);
-                alert('获取组合详情失败，请检查网络连接');
-                document.getElementById('portfolioDetailLoading').style.display = 'none';
-                document.getElementById('portfolioDetailEmpty').style.display = 'block';
-            }
+            });
         }
         
-        // 查看组合详情（从关注组合页面跳转）
+        // 查看组合详情（从关注组合页面跳转）- jQuery版本
         function viewPortfolioDetail(portfolioId, portfolioName) {
             // 切换到组合详情标签页
             switchTab('portfolio-detail');
             
             // 填入组合ID
-            document.getElementById('portfolioIdInput').value = portfolioId;
+            $('#portfolioIdInput').val(portfolioId);
             
             // 自动查询
             loadPortfolioDetail();
         }
         
-        // 显示组合详情
+        // 显示组合详情 - jQuery版本
         function displayPortfolioDetail(data) {
             // 显示组合基本信息
-            const portfolioInfo = document.getElementById('portfolioInfo');
-            portfolioInfo.innerHTML = `
+            $('#portfolioInfo').html(`
                 <h3 style="margin-bottom: 15px; color: var(--accent-color);">📈 ${data.组合名称}</h3>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                     <div><strong>组合ID:</strong> ${data.组合ID}</div>
@@ -1258,41 +1285,40 @@
                     <div><strong>总收益率:</strong> <span style="color: ${parseFloat(data.总收益率) >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}"> ${data.总收益率}%</span></div>
                     <div><strong>今日收益率:</strong> <span style="color: ${parseFloat(data.今日收益率) >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}"> ${data.今日收益率}%</span></div>
                 </div>
-            `;
+            `);
             
             // 显示持仓信息
-            const tbody = document.getElementById('portfolioPositionsTable');
-            tbody.innerHTML = '';
+            const $tbody = $('#portfolioPositionsTable');
+            $tbody.empty();
             
             if (data.持仓信息 && data.持仓信息.length > 0) {
                 data.持仓信息.forEach(position => {
-                    const row = document.createElement('tr');
                     const profitRate = parseFloat(position.盈亏比.replace('%', ''));
                     const profitColor = profitRate >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
                     
-                    row.innerHTML = `
-                        <td>
-                            <div style="font-weight: 600;">${position.股票名称}</div>
-                            <div style="color: var(--text-muted); font-size: 0.9em;">${position.股票代码}</div>
-                        </td>
-                        <td>
-                            <div>${position.成本价}</div>
-                            <div style="color: var(--text-muted); font-size: 0.9em;">${position.现价}</div>
-                        </td>
-                        <td style="color: ${profitColor}; font-weight: 600;">${position.盈亏比}</td>
-                        <td>${position.仓位}</td>
+                    const rowHtml = `
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600;">${position.股票名称}</div>
+                                <div style="color: var(--text-muted); font-size: 0.9em;">${position.股票代码}</div>
+                            </td>
+                            <td>
+                                <div>${position.成本价}</div>
+                                <div style="color: var(--text-muted); font-size: 0.9em;">${position.现价}</div>
+                            </td>
+                            <td style="color: ${profitColor}; font-weight: 600;">${position.盈亏比}</td>
+                            <td>${position.仓位}</td>
+                        </tr>
                     `;
-                    tbody.appendChild(row);
+                    $tbody.append(rowHtml);
                 });
             } else {
-                const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="4" style="text-align: center; color: var(--text-muted);">暂无持仓信息</td>';
-                tbody.appendChild(row);
+                $tbody.append('<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">暂无持仓信息</td></tr>');
             }
             
             // 隐藏加载状态，显示内容
-            document.getElementById('portfolioDetailLoading').style.display = 'none';
-            document.getElementById('portfolioDetailContent').style.display = 'block';
+            $('#portfolioDetailLoading').hide();
+            $('#portfolioDetailContent').show();
         }
         
         // 测试持仓详情功能
@@ -1371,9 +1397,9 @@
             // 初始化刷新间隔设置
             initRefreshInterval();
             
-            // 首次加载数据
+            // 首次加载数据（静默加载，不显示加载状态）
             console.log('=== 开始初始加载数据 ===');
-            refreshData();
+            refreshData(false);
             
             // 启动自动刷新
             startCountdown();
