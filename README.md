@@ -13,14 +13,14 @@
 
 点击下面的按钮可以一键部署到Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/houpe/dcshipan)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/houpe/dcshipan2)
 
 ## 本地运行
 
 1. 克隆项目
 ```bash
-git clone https://github.com/YOUR_USERNAME/dcshipan.git
-cd dcshipan
+git clone https://github.com/houpe/dcshipan2.git
+cd dcshipan2
 ```
 
 2. 安装依赖
