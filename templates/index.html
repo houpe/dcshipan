@@ -903,8 +903,8 @@
             return cell;
         }
         
-        // 创建带详情的组合单元格（处理结构化数组数据）
-        async function createComboCellWithDetails(combosArray) {
+        // 创建带详情的组合单元格（处理结构化数组数据）- 异步加载优化版本
+        function createComboCellWithDetails(combosArray) {
             console.log('createComboCellWithDetails 被调用，参数:', combosArray);
             
             const cell = document.createElement('td');
@@ -938,50 +938,13 @@
                     });
                 }
                 
-                // 只为第一个组合获取持仓详情
+                // 只为第一个组合添加加载状态，然后异步加载详情
                 if (i === 0) {
-                    console.log('准备获取第一个组合的持仓详情，组合ID:', combo.id);
-                    try {
-                        console.log('发送API请求到:', `/api/portfolio_detail/${combo.id}`);
-                        const response = await fetch(`/api/portfolio_detail/${combo.id}`);
-                        console.log('API响应状态:', response.status);
-                        const result = await response.json();
-                        console.log('API响应数据:', result);
-                        
-                        if (result.success && result.data && result.data.持仓信息) {
-                            console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
-                            const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
-                            let holdingsHtml = '<div style="font-size: 0.8em; color: #666; margin-top: 4px; line-height: 1.4; background-color: rgba(255, 255, 255, 0.05); padding: 2px; border-left: 2px solid #4a90e2;">';
-                            holdings.forEach(holding => {
-                                const profitRate = parseFloat(holding.盈亏比.replace('%', ''));
-                                let profitColor;
-                                if (profitRate > 0) {
-                                    profitColor = '#ef4444'; // 红色
-                                } else if (profitRate === 0) {
-                                    profitColor = '#999'; // 灰色
-                                } else {
-                                    profitColor = '#22c55e'; // 绿色
-                                }
-                                holdingsHtml += `<div style="font-size: 0.8em; margin: 1px 0; white-space: nowrap;">
-                                    <span style="font-weight: 600;">${holding.股票名称}</span>/<span style="color: #999;">${holding.股票代码}</span> <span>${holding.成本价}</span>/<span style="color: #999;">${holding.现价}</span> <span style="color: ${profitColor}; font-weight: bold;">${holding.盈亏比}</span> <span>${holding.仓位}</span>
-                                </div>`;
-                            });
-                            if (result.data.持仓信息.length > 3) {
-                                holdingsHtml += '<div style="color: #999;">...</div>';
-                            }
-                            holdingsHtml += '</div>';
-                            itemHtml += holdingsHtml;
-                            console.log('添加持仓详情后的HTML长度:', itemHtml.length);
-                        } else {
-                            console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
-                        }
-                    } catch (error) {
-                        console.error('获取组合详情失败:', error);
-                        // 添加错误提示到HTML中
-                        itemHtml += '<div style="font-size: 0.7em; color: red; margin-top: 2px;">[获取详情失败]</div>';
-                    }
-                } else {
-                    console.log(`跳过组合详情获取，i=${i}`);
+                    const loadingId = `loading-${combo.id}-${Date.now()}`;
+                    itemHtml += `<div id="${loadingId}" style="font-size: 0.8em; color: #666; margin-top: 4px; line-height: 1.4; background-color: rgba(255, 255, 255, 0.05); padding: 2px; border-left: 2px solid #4a90e2;">📊 加载持仓详情中...</div>`;
+                    
+                    // 异步加载组合详情
+                    loadPortfolioDetailsAsync(combo.id, loadingId);
                 }
                 
                 processedItems.push(itemHtml);
@@ -992,6 +955,71 @@
             console.log('返回的cell.innerHTML长度:', cell.innerHTML.length);
             return cell;
         }
+        
+        // 用于跟踪正在加载的组合，避免重复请求
+        const loadingPortfolios = new Set();
+        
+        // 异步加载组合详情
+        async function loadPortfolioDetailsAsync(comboId, loadingElementId) {
+            // 防止重复加载同一个组合
+            if (loadingPortfolios.has(comboId)) {
+                console.log('组合', comboId, '已在加载中，跳过重复请求');
+                return;
+            }
+            
+            loadingPortfolios.add(comboId);
+            console.log('开始异步加载组合详情，组合ID:', comboId);
+            try {
+                console.log('发送API请求到:', `/api/portfolio_detail/${comboId}`);
+                const response = await fetch(`/api/portfolio_detail/${comboId}`);
+                console.log('API响应状态:', response.status);
+                const result = await response.json();
+                console.log('API响应数据:', result);
+                
+                const loadingElement = document.getElementById(loadingElementId);
+                if (!loadingElement) {
+                    console.log('加载元素已不存在，可能页面已刷新');
+                    return;
+                }
+                
+                if (result.success && result.data && result.data.持仓信息) {
+                    console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
+                    const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
+                    let holdingsHtml = '';
+                    holdings.forEach(holding => {
+                        const profitRate = parseFloat(holding.盈亏比.replace('%', ''));
+                        let profitColor;
+                        if (profitRate > 0) {
+                            profitColor = '#ef4444'; // 红色
+                        } else if (profitRate === 0) {
+                            profitColor = '#999'; // 灰色
+                        } else {
+                            profitColor = '#22c55e'; // 绿色
+                        }
+                        holdingsHtml += `<div style="font-size: 0.8em; margin: 1px 0; white-space: nowrap;">
+                            <span style="font-weight: 600;">${holding.股票名称}</span>/<span style="color: #999;">${holding.股票代码}</span> <span>${holding.成本价}</span>/<span style="color: #999;">${holding.现价}</span> <span style="color: ${profitColor}; font-weight: bold;">${holding.盈亏比}</span> <span>${holding.仓位}</span>
+                        </div>`;
+                    });
+                    if (result.data.持仓信息.length > 3) {
+                        holdingsHtml += '<div style="color: #999;">...</div>';
+                    }
+                    loadingElement.innerHTML = holdingsHtml;
+                     console.log('持仓详情加载完成');
+                 } else {
+                     console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
+                     loadingElement.innerHTML = '<div style="font-size: 0.7em; color: #999;">暂无持仓信息</div>';
+                 }
+             } catch (error) {
+                 console.error('获取组合详情失败:', error);
+                 const loadingElement = document.getElementById(loadingElementId);
+                 if (loadingElement) {
+                     loadingElement.innerHTML = '<div style="font-size: 0.7em; color: red;">[获取详情失败]</div>';
+                 }
+             } finally {
+                 // 无论成功还是失败，都从加载集合中移除
+                 loadingPortfolios.delete(comboId);
+             }
+         }
         
         // 显示popover
         function showPopover(element, comboName, comboId) {
@@ -1036,7 +1064,7 @@
         }
         
         // 更新股票汇总表格
-        async function updateStockSummary(stockData) {
+        function updateStockSummary(stockData) {
             console.log('=== updateStockSummary 开始执行 ===');
             console.log('接收到的数据长度:', stockData.length);
             console.log('第一条数据:', stockData[0]);
@@ -1067,7 +1095,7 @@
                 
                 let buyCell;
                 try {
-                    buyCell = await createComboCellWithDetails(stock.买入组合);
+                    buyCell = createComboCellWithDetails(stock.买入组合);
                     console.log('买入组合单元格创建成功');
                 } catch (error) {
                     console.error('创建买入组合单元格失败:', error);
@@ -1078,7 +1106,7 @@
                 console.log('准备创建卖出组合单元格:', stock.卖出组合);
                 let sellCell;
                 try {
-                    sellCell = await createComboCellWithDetails(stock.卖出组合);
+                    sellCell = createComboCellWithDetails(stock.卖出组合);
                     console.log('卖出组合单元格创建成功');
                 } catch (error) {
                     console.error('创建卖出组合单元格失败:', error);
