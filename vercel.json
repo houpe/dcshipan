@@ -3,7 +3,11 @@
   "builds": [
     {
       "src": "./index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.9"
+      }
     }
   ],
   "routes": [
@@ -11,5 +15,14 @@
       "src": "/(.*)",
       "dest": "/"
     }
-  ]
+  ],
+  "env": {
+    "VERCEL_ENV": "1",
+    "PYTHONPATH": "."
+  },
+  "functions": {
+    "index.py": {
+      "maxDuration": 10
+    }
+  }
 }
