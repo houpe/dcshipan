@@ -414,6 +414,7 @@ class RankCrawler:
         return deduplicated_data
     
     def save_rank_data(self, data: Dict[str, Any]) -> str:
+
         """保存排行榜数据到DiskCache
         
         将获取到的所有排行榜数据保存到磁盘缓存中，支持数据持久化和快速访问。
@@ -469,7 +470,7 @@ class RankCrawler:
         # 保存到DiskCache
         self.cache.set(cache_key, merged_data)
         
-        # 保存最新数据
+        # 保存最新数据 #todo逻辑不对，保存了2
         self.cache.set("latest_rank_data", merged_data)
         
         # 清理过期缓存
