@@ -103,8 +103,16 @@ def get_tc_list():
 
 @app.route('/api/portfolio_detail/<portfolio_id>')
 def get_portfolio_detail(portfolio_id):
-    """获取组合详情API（带缓存）"""
+    """获取组合详情API（带缓存和超时控制）"""
     try:
+        # 验证组合ID格式
+        if not portfolio_id or not portfolio_id.isdigit():
+            return jsonify({
+                'success': False,
+                'error': '无效的组合ID格式',
+                'data': None
+            })
+        
         cache_key = f"portfolio_{portfolio_id}"
         
         # 尝试从缓存获取数据
@@ -120,16 +128,30 @@ def get_portfolio_detail(portfolio_id):
         
         # 缓存未命中，从东财接口获取数据
         logger.info(f"缓存未命中，从接口获取组合详情: {portfolio_id}")
-        async def get_data():
+        
+        async def get_data_with_timeout():
             crawler = RankCrawler(cache_dir="./data/cache", enable_deduplication=True)
             try:
-                return await crawler.get_portfolio_detail(portfolio_id)
+                # 使用asyncio.wait_for添加超时控制
+                return await asyncio.wait_for(
+                    crawler.get_portfolio_detail(portfolio_id),
+                    timeout=8.0  # 8秒超时
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"获取组合详情超时: {portfolio_id}")
+                return None
+            except Exception as e:
+                logger.error(f"获取组合详情异常: {portfolio_id}, 错误: {str(e)}")
+                return None
             finally:
                 # 确保关闭会话
-                if hasattr(crawler, 'session') and crawler.session and not crawler.session.closed:
-                    await crawler.session.close()
+                try:
+                    if hasattr(crawler, 'session') and crawler.session and not crawler.session.closed:
+                        await crawler.session.close()
+                except Exception as close_error:
+                    logger.warning(f"关闭会话时出错: {close_error}")
         
-        portfolio_data = asyncio.run(get_data())
+        portfolio_data = asyncio.run(get_data_with_timeout())
         
         if portfolio_data:
             # 将数据存入缓存，过期时间60秒（1分钟）
@@ -145,15 +167,15 @@ def get_portfolio_detail(portfolio_id):
         else:
             return jsonify({
                 'success': False,
-                'error': '获取组合详情失败',
+                'error': '获取组合详情失败或超时',
                 'data': None
             })
             
     except Exception as e:
-        logger.error(f"获取组合详情失败: {str(e)}")
+        logger.error(f"获取组合详情失败: {portfolio_id}, 错误: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e),
+            'error': f'服务器错误: {str(e)}',
             'data': None
         })
 

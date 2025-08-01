@@ -823,14 +823,110 @@
             $(event.target).addClass('active');
         }
         
-        // 刷新数据 - jQuery版本
+        // 数据管理器 - 基于jQuery事件的数据监听系统
+        const DataManager = {
+            data: {},
+            
+            // 设置数据并触发事件
+            setData: function(key, value) {
+                const oldValue = this.data[key];
+                this.data[key] = value;
+                
+                // 触发数据变化事件
+                $(document).trigger('dataChanged', {
+                    key: key,
+                    oldValue: oldValue,
+                    newValue: value,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            },
+            
+            // 获取数据
+            getData: function(key) {
+                return this.data[key];
+            },
+            
+            // 触发加载状态事件
+            setLoading: function(key, isLoading) {
+                $(document).trigger('loadingStateChanged', {
+                    key: key,
+                    isLoading: isLoading
+                });
+            },
+            
+            // 触发错误事件
+            setError: function(key, error) {
+                $(document).trigger('dataError', {
+                    key: key,
+                    error: error
+                });
+            }
+        };
+        
+        // 监听数据变化事件
+        $(document).on('dataChanged', function(event, data) {
+            console.log('数据变化监听:', data.key, '从', data.oldValue?.length || 'null', '变为', data.newValue?.length || 'null');
+            
+            // 根据不同的数据类型执行不同的更新逻辑
+            switch(data.key) {
+                case 'stockSummary':
+                    updateStockSummary(data.newValue);
+                    $('#lastUpdate').text(data.timestamp);
+                    break;
+                case 'portfolioDetail':
+                    displayPortfolioDetail(data.newValue);
+                    break;
+            }
+        });
+        
+        // 监听加载状态变化
+        $(document).on('loadingStateChanged', function(event, data) {
+            console.log('加载状态变化:', data.key, data.isLoading ? '开始加载' : '加载完成');
+            
+            switch(data.key) {
+                case 'stockSummary':
+                    if (data.isLoading) {
+                        $('#stockSummaryLoading').show();
+                        $('#stockSummaryContent').hide();
+                    } else {
+                        $('#stockSummaryLoading').hide();
+                        $('#stockSummaryContent').show();
+                    }
+                    break;
+                case 'portfolioDetail':
+                    if (data.isLoading) {
+                        $('#portfolioDetailLoading').show();
+                        $('#portfolioDetailContent').hide();
+                        $('#portfolioDetailEmpty').hide();
+                    } else {
+                        $('#portfolioDetailLoading').hide();
+                    }
+                    break;
+            }
+        });
+        
+        // 监听错误事件
+        $(document).on('dataError', function(event, data) {
+            console.error('数据错误监听:', data.key, data.error);
+            
+            // 隐藏加载状态
+            DataManager.setLoading(data.key, false);
+            
+            // 显示错误提示
+            if (data.error.status === 'timeout') {
+                alert('请求超时，请检查网络连接');
+            } else {
+                alert('数据加载失败，请稍后重试');
+            }
+        });
+        
+        // 刷新数据 - 基于事件监听的版本
         function refreshData(showLoading = true) {
             console.log('=== refreshData 开始 ===');
             
-            // 根据参数决定是否显示加载状态
+            // 触发加载状态
             if (showLoading) {
-                $('#stockSummaryLoading').show();
-                $('#stockSummaryContent').hide();
+                DataManager.setLoading('stockSummary', true);
             }
             
             // 使用jQuery AJAX获取股票汇总数据
@@ -843,31 +939,26 @@
                     console.log('API响应数据:', data);
                     
                     if (data.success) {
-                        updateStockSummary(data.data);
-                        $('#lastUpdate').text(data.update_time);
+                        // 通过数据管理器设置数据，自动触发监听事件
+                        DataManager.setData('stockSummary', data.data);
+                        DataManager.setData('updateTime', data.update_time);
                     } else {
                         console.error('获取数据失败:', data.error);
+                        DataManager.setError('stockSummary', {error: data.error});
                     }
                     
-                    // 隐藏加载状态，显示内容
-                    $('#stockSummaryLoading').hide();
-                    $('#stockSummaryContent').show();
+                    // 结束加载状态
+                    if (showLoading) {
+                        DataManager.setLoading('stockSummary', false);
+                    }
                 },
                 error: function(xhr, status, error) {
                     console.error('刷新数据失败:', error);
                     console.error('状态:', status);
                     console.error('响应:', xhr.responseText);
                     
-                    // 隐藏加载状态
-                    $('#stockSummaryLoading').hide();
-                    $('#stockSummaryContent').show();
-                    
-                    // 显示错误提示
-                    if (status === 'timeout') {
-                        alert('请求超时，请检查网络连接');
-                    } else {
-                        alert('数据加载失败，请稍后重试');
-                    }
+                    // 触发错误事件
+                    DataManager.setError('stockSummary', {status, error, xhr});
                 }
             });
         }
@@ -976,7 +1067,10 @@
         // 用于跟踪正在加载的组合，避免重复请求
         const loadingPortfolios = new Set();
         
-        // 异步加载组合详情 - jQuery版本
+        // 全局请求管理器，用于取消未完成的请求
+        const activeRequests = new Map();
+        
+        // 异步加载组合详情 - 基于事件监听的版本
         function loadPortfolioDetailsAsync(comboId, loadingElementId) {
             // 防止重复加载同一个组合
             if (loadingPortfolios.has(comboId)) {
@@ -988,12 +1082,34 @@
             console.log('开始异步加载组合详情，组合ID:', comboId);
             console.log('发送API请求到:', `/api/portfolio_detail/${comboId}`);
             
-            $.ajax({
+            // 触发加载状态
+            DataManager.setLoading(`portfolioAsync_${comboId}`, true);
+            
+            // 设置加载超时保护
+            const timeoutId = setTimeout(() => {
+                const $loadingElement = $('#' + loadingElementId);
+                if ($loadingElement.length > 0) {
+                    $loadingElement.html('<div style="font-size: 0.7em; color: orange;">[加载超时，请刷新重试]</div>');
+                }
+                loadingPortfolios.delete(comboId);
+                DataManager.setError(`portfolioAsync_${comboId}`, {error: '加载超时'});
+                console.warn('组合详情加载超时:', comboId);
+            }, 10000); // 10秒超时保护
+            
+            // 如果已有相同组合的请求，先取消它
+            if (activeRequests.has(comboId)) {
+                activeRequests.get(comboId).abort();
+                activeRequests.delete(comboId);
+            }
+            
+            const xhr = $.ajax({
                 url: `/api/portfolio_detail/${comboId}`,
                 type: 'GET',
                 dataType: 'json',
-                timeout: 15000, // 15秒超时
+                timeout: 8000, // 8秒超时
+                cache: false, // 禁用缓存
                 success: function(result) {
+                    clearTimeout(timeoutId); // 清除超时保护
                     console.log('API响应数据:', result);
                     
                     const $loadingElement = $('#' + loadingElementId);
@@ -1004,6 +1120,15 @@
                     
                     if (result.success && result.data && result.data.持仓信息) {
                         console.log('成功获取持仓信息，数量:', result.data.持仓信息.length);
+                        
+                        // 通过数据管理器设置数据，触发事件
+                        DataManager.setData(`portfolioAsync_${comboId}`, {
+                            comboId: comboId,
+                            loadingElementId: loadingElementId,
+                            holdings: result.data.持仓信息,
+                            fullData: result.data
+                        });
+                        
                         const holdings = result.data.持仓信息.slice(0, 3); // 只显示前3个持仓
                         let holdingsHtml = '';
                         holdings.forEach(holding => {
@@ -1028,26 +1153,43 @@
                     } else {
                         console.log('API响应中没有持仓信息或请求失败，result.success:', result.success);
                         $loadingElement.html('<div style="font-size: 0.7em; color: #999;">暂无持仓信息</div>');
+                        DataManager.setError(`portfolioAsync_${comboId}`, {error: '暂无持仓信息'});
                     }
+                    
+                    // 结束加载状态
+                    DataManager.setLoading(`portfolioAsync_${comboId}`, false);
                 },
                 error: function(xhr, status, error) {
+                    clearTimeout(timeoutId); // 清除超时保护
                     console.error('获取组合详情失败:', error);
                     console.error('状态:', status);
+                    console.error('响应状态码:', xhr.status);
                     
                     const $loadingElement = $('#' + loadingElementId);
                     if ($loadingElement.length > 0) {
                         if (status === 'timeout') {
                             $loadingElement.html('<div style="font-size: 0.7em; color: red;">[请求超时]</div>');
+                        } else if (status === 'abort') {
+                            $loadingElement.html('<div style="font-size: 0.7em; color: orange;">[请求已取消]</div>');
                         } else {
                             $loadingElement.html('<div style="font-size: 0.7em; color: red;">[获取详情失败]</div>');
                         }
                     }
+                    
+                    // 触发错误事件
+                    DataManager.setError(`portfolioAsync_${comboId}`, {status, error, xhr});
                 },
                 complete: function() {
+                    clearTimeout(timeoutId); // 确保超时保护被清除
                     // 无论成功还是失败，都从加载集合中移除
                     loadingPortfolios.delete(comboId);
+                    activeRequests.delete(comboId); // 从活动请求中移除
+                    console.log('组合详情请求完成，组合ID:', comboId);
                 }
             });
+            
+            // 将请求添加到活动请求管理器
+            activeRequests.set(comboId, xhr);
         }
         
         // 显示popover
@@ -1218,7 +1360,7 @@
             }
         }
         
-        // 加载组合详情 - jQuery版本
+        // 加载组合详情 - 基于事件监听的版本
         function loadPortfolioDetail() {
             const portfolioId = $('#portfolioIdInput').val().trim();
             
@@ -1227,10 +1369,8 @@
                 return;
             }
             
-            // 显示加载状态
-            $('#portfolioDetailEmpty').hide();
-            $('#portfolioDetailContent').hide();
-            $('#portfolioDetailLoading').show();
+            // 触发加载状态
+            DataManager.setLoading('portfolioDetail', true);
             
             $.ajax({
                 url: `/api/portfolio_detail/${portfolioId}`,
@@ -1239,25 +1379,27 @@
                 timeout: 20000, // 20秒超时
                 success: function(result) {
                     if (result.success && result.data) {
-                        displayPortfolioDetail(result.data);
+                        // 通过数据管理器设置数据，自动触发监听事件
+                        DataManager.setData('portfolioDetail', result.data);
+                        $('#portfolioDetailContent').show();
+                        $('#portfolioDetailEmpty').hide();
                     } else {
-                        alert(result.error || '获取组合详情失败');
-                        $('#portfolioDetailLoading').hide();
+                        DataManager.setError('portfolioDetail', {error: result.error || '获取组合详情失败'});
                         $('#portfolioDetailEmpty').show();
+                        $('#portfolioDetailContent').hide();
                     }
+                    
+                    // 结束加载状态
+                    DataManager.setLoading('portfolioDetail', false);
                 },
                 error: function(xhr, status, error) {
                     console.error('获取组合详情失败:', error);
                     console.error('状态:', status);
                     
-                    if (status === 'timeout') {
-                        alert('请求超时，请检查网络连接');
-                    } else {
-                        alert('获取组合详情失败，请稍后重试');
-                    }
-                    
-                    $('#portfolioDetailLoading').hide();
+                    // 触发错误事件
+                    DataManager.setError('portfolioDetail', {status, error, xhr});
                     $('#portfolioDetailEmpty').show();
+                    $('#portfolioDetailContent').hide();
                 }
             });
         }
@@ -1397,6 +1539,9 @@
             // 初始化刷新间隔设置
             initRefreshInterval();
             
+            // 设置数据变化监听器
+            setupDataListeners();
+            
             // 首次加载数据（静默加载，不显示加载状态）
             console.log('=== 开始初始加载数据 ===');
             refreshData(false);
@@ -1421,6 +1566,100 @@
                     }
                 }
             });
+        });
+        
+        // 设置数据变化监听器
+        function setupDataListeners() {
+            console.log('设置数据变化监听器');
+            
+            // 监听股票汇总数据变化
+            $(document).on('dataChanged', function(event, key, data) {
+                console.log('数据变化事件:', key, data);
+                
+                if (key === 'stockSummary') {
+                    console.log('股票汇总数据更新，重新渲染表格');
+                    updateStockSummary(data);
+                }
+            });
+            
+            // 监听组合详情数据变化
+            $(document).on('dataChanged', function(event, key, data) {
+                if (key === 'portfolioDetail') {
+                    console.log('组合详情数据更新');
+                    displayPortfolioDetail(data);
+                }
+            });
+            
+            // 监听异步组合详情数据变化
+            $(document).on('dataChanged', function(event, key, data) {
+                if (key.startsWith('portfolioAsync_')) {
+                    console.log('异步组合详情数据更新:', key, data);
+                    // 这里可以添加额外的处理逻辑，比如缓存数据或触发其他更新
+                }
+            });
+            
+            // 监听加载状态变化
+            $(document).on('loadingStateChanged', function(event, key, isLoading) {
+                console.log('加载状态变化:', key, isLoading);
+                
+                if (key === 'stockSummary') {
+                    if (isLoading) {
+                        $('#loadingIndicator').show();
+                    } else {
+                        $('#loadingIndicator').hide();
+                    }
+                }
+                
+                if (key === 'portfolioDetail') {
+                    if (isLoading) {
+                        $('#portfolioDetailEmpty').hide();
+                        $('#portfolioDetailContent').hide();
+                        $('#portfolioDetailLoading').show();
+                    } else {
+                        $('#portfolioDetailLoading').hide();
+                    }
+                }
+            });
+            
+            // 监听错误事件
+            $(document).on('dataError', function(event, key, errorData) {
+                console.error('数据错误事件:', key, errorData);
+                
+                if (key === 'portfolioDetail') {
+                    if (errorData.error) {
+                        alert(errorData.error);
+                    } else if (errorData.status === 'timeout') {
+                        alert('请求超时，请检查网络连接');
+                    } else {
+                        alert('获取组合详情失败，请稍后重试');
+                    }
+                }
+            });
+        }
+        
+        // 取消所有活动请求的函数
+        function cancelAllActiveRequests() {
+            console.log('取消所有活动请求，数量:', activeRequests.size);
+            activeRequests.forEach((xhr, comboId) => {
+                if (xhr && xhr.readyState !== 4) { // 如果请求还未完成
+                    xhr.abort();
+                    console.log('已取消请求:', comboId);
+                }
+            });
+            activeRequests.clear();
+            loadingPortfolios.clear();
+        }
+        
+        // 页面卸载时取消所有请求
+        $(window).on('beforeunload', function() {
+            cancelAllActiveRequests();
+        });
+        
+        // 页面隐藏时也取消请求（移动端兼容）
+        $(document).on('visibilitychange', function() {
+            if (document.hidden) {
+                cancelAllActiveRequests();
+            }
         });
     </script>
 </body>
